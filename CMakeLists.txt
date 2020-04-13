@@ -235,6 +235,12 @@ IF ( USE_SCOTCH )
   ENDIF ( )
 ENDIF ( )
 
+############################################################################
+#####
+#####         Linear Elasticity
+#####
+############################################################################
+
 # add LinearElasticity library?
 SET(ELAS_DIR "" CACHE PATH "Installation directory for Elas")
 OPTION (
