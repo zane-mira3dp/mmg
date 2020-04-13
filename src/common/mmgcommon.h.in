@@ -34,6 +34,7 @@
 #include <float.h>
 #include <math.h>
 #include <complex.h>
+#include <unistd.h>
 
 @DEF_POSIX@
 @DEF_GNU@
@@ -180,6 +181,79 @@ extern "C" {
 /* file reading */
 #define MMG5_SW 4
 #define MMG5_SD 8
+
+#define COLOR_RED     "\x1b[31m"
+#define COLOR_GREEN   "\x1b[32m"
+#define COLOR_YELLOW  "\x1b[33m"
+#define COLOR_BLUE    "\x1b[34m"
+#define COLOR_MAGENTA "\x1b[35m"
+#define COLOR_CYAN    "\x1b[36m"
+#define COLOR_END     "\x1b[0m"
+
+#define LOG_RED(stream,color,X) do              \
+  {                                             \
+    if ( color ) {                              \
+      fprintf(stream,"%s",COLOR_RED);           \
+      X;                                        \
+      fprintf(stream,"%s",COLOR_END);           \
+    } else {                                    \
+      X;                                        \
+    }                                           \
+  }while(0)
+
+#define LOG_GREEN(stream,color,X) do            \
+  {                                             \
+    if ( color ) {                              \
+      fprintf(stream,"%s",COLOR_GREEN);         \
+      X;                                        \
+      fprintf(stream,"%s",COLOR_END);           \
+    } else {                                    \
+      X;                                        \
+    }                                           \
+  }while(0)
+
+#define LOG_BLUE(stream,color,X) do             \
+  {                                             \
+    if ( color ) {                              \
+      fprintf(stream,"%s",COLOR_BLUE);          \
+      X;                                        \
+      fprintf(stream,"%s",COLOR_END);           \
+    } else {                                    \
+      X;                                        \
+    }                                           \
+  }while(0)
+
+#define LOG_YELLOW(stream,color,X) do           \
+  {                                             \
+    if ( color ) {                              \
+      fprintf(stream,"%s",COLOR_YELLOW);        \
+      X;                                        \
+      fprintf(stream,"%s",COLOR_END);           \
+    } else {                                    \
+      X;                                        \
+    }                                           \
+  } while(0)
+
+#define LOG_ERR(X) do                           \
+  {                                             \
+    LOG_RED(stderr,mesh->info.stderrcolor,X);   \
+  }while(0)
+
+#define LOG_WARN(X) do                          \
+  {                                             \
+    LOG_YELLOW(stdout,mesh->info.stdoutcolor,X);  \
+  }while(0)
+
+#define LOG_INFO(X) do                          \
+  {                                             \
+    LOG_BLUE(stdout,mesh->info.stdoutcolor,X);  \
+  }while(0)
+
+#define LOG_GOOD(X) do                          \
+  {                                             \
+    LOG_GREEN(stdout,mesh->info.stdoutcolor,X); \
+  }while(0)
+
 
 /** Reset the customized signals and set the internal counters of points, edges,
  * tria and tetra to the suitable value (needed by users to recover their mesh

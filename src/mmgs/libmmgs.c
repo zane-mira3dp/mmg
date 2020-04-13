@@ -533,6 +533,22 @@ int MMGS_mmgslib(MMG5_pMesh mesh,MMG5_pSol met)
   assert ( mesh->point );
   assert ( mesh->tria );
 
+  mesh->info.stdoutcolor = isatty(fileno(stdout));
+  mesh->info.stderrcolor = isatty(fileno(stderr));
+
+  LOG_ERR(fprintf(stderr,"Hello World\n"););
+
+  LOG_WARN(fprintf(stdout,"Hello World\n"););
+
+
+  LOG_WARN(fprintf(stdout,"Hello World\n"););
+
+  LOG_INFO(fprintf(stdout,"Hello World\n"););
+
+  LOG_GOOD(fprintf(stdout,"Hello World\n"););
+
+  printf ( "coucou");
+
   if ( mesh->info.imprim >= 0 ) {
     fprintf(stdout,"\n  %s\n   MODULE MMGS: %s (%s)\n  %s\n",MG_STR,MG_VER,MG_REL,MG_STR);
     fprintf(stdout,"     git branch: %s\n",MMG_GIT_BRANCH);

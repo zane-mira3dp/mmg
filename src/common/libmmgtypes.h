@@ -450,6 +450,8 @@ typedef struct {
   int           renum;
   int           PROctree;
   int           nmat;
+  int           stderrcolor; /*!< 1 if stderr suport colors */
+  int           stdoutcolor; /*!< 1 if stdout suport colors */
   char          nreg;
   char          imprim,ddebug,badkal,iso,fem,lag;
   char          parTyp; /*!< Contains binary flags to say which kind of local
