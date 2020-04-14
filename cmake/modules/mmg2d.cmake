@@ -68,6 +68,11 @@ IF ( VTK_FOUND )
     ${COMMON_SOURCE_DIR}/vtkparser.cpp )
 ENDIF ( )
 
+IF ( pybind11_FOUND )
+  LIST(APPEND  mmg2d_library_files
+    ${MMG2D_SOURCE_DIR}/pybind11mmg2d.cpp )
+ENDIF()
+
 FILE(
   GLOB
   mmg2d_main_file

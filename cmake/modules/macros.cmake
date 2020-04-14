@@ -127,6 +127,16 @@ MACRO ( ADD_AND_INSTALL_LIBRARY
     endif()
   endif( )
 
+  if ( pybind11_FOUND )
+    message(STATUS "[mmg] add includes for pybind11  ${pybind11_INCLUDE_DIRS}")
+    IF ( CMAKE_VERSION VERSION_LESS 2.8.12 )
+      INCLUDE_DIRECTORIES ( ${target_name} PUBLIC ${pybind11_INCLUDE_DIRS} )
+    ELSE ( )
+      target_include_directories( ${target_name} PUBLIC ${pybind11_INCLUDE_DIRS} )
+    endif()
+  endif( )
+
+
   SET_TARGET_PROPERTIES ( ${target_name} PROPERTIES
     OUTPUT_NAME ${output_name}
     VERSION ${CMAKE_RELEASE_VERSION_MAJOR}.${CMAKE_RELEASE_VERSION_MINOR}.${CMAKE_RELEASE_VERSION_PATCH}

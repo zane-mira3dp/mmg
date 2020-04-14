@@ -275,6 +275,21 @@ ENDIF ( )
 
 ############################################################################
 #####
+#####         pybind11 (to create python wrappers)
+#####
+############################################################################
+OPTION ( USE_PYTHON "Use PYTHON" ON )
+IF ( USE_PYTHON )
+  FIND_PACKAGE(pybind11)
+  IF ( NOT pybind11_FOUND )
+    MESSAGE ( WARNING "pybind11 library not found: python bindings will not be available.")
+  ENDIF ( )
+ENDIF ( )
+
+MESSAGE("coucou ${pybind11_INCLUDE_DIRS}")
+MESSAGE("coucou ${pybind11_LIBRARIES}")
+############################################################################
+#####
 ##### RPATH for MacOSX
 #####
 ############################################################################
@@ -378,6 +393,14 @@ IF ( VTK_FOUND )
   INCLUDE ( ${VTK_USE_FILE} )
   SET( LIBRARIES ${VTK_LIBRARIES} ${LIBRARIES} )
 ENDIF ( )
+
+IF( pybind11_FOUND )
+  SET(CMAKE_C_FLAGS "-DUSE_PYBIND11 ${CMAKE_C_FLAGS}")
+
+  MESSAGE(STATUS
+    "Compilation with pybind11: ${pybind11_LIBRARIES}")
+  SET( LIBRARIES ${pybind11_LIBRARIES} ${LIBRARIES})
+ENDIF()
 
 #---------------------------- mmg library gathering mmg2d, mmgs and mmg3d libs
 CMAKE_DEPENDENT_OPTION ( LIBMMG_STATIC
