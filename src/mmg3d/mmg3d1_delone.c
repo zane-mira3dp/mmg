@@ -38,7 +38,7 @@
 
 #ifndef PATTERN
 
-char  ddb;
+int8_t  ddb;
 
 #define MMG3D_LOPTLMMG5_DEL     1.41
 #define MMG3D_LOPTSMMG5_DEL     0.6
@@ -68,23 +68,23 @@ char  ddb;
 static inline int
 MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
                  int* ifilt,int* ns,int* nc,int* warn,int it) {
-  MMG5_pTetra  pt;
-  MMG5_pxTetra pxt;
-  MMG5_Tria    ptt;
-  MMG5_pPoint  p0,p1,ppt;
-  MMG5_pxPoint pxp;
-  double       dd,len,lmax,o[3],to[3],no1[3],no2[3],v[3];
-  int          k,ip,ip1,ip2,list[MMG3D_LMAX+2],ilist,lists[MMG3D_LMAX+2],ilists,ref;
-  int16_t      tag;
-  char         imax,j,i,i1,i2,ifa0,ifa1;
-  int          lon,ret,ier;
-  double       lmin,lfilt;
-  int          imin,iq;
-  int          ii;
-  double       lmaxtet,lmintet,volmin;
-  int          imaxtet,imintet,base,countMemFailure;
-  char         chkRidTet;
-  static char  mmgWarn0 = 0;
+  MMG5_pTetra   pt;
+  MMG5_pxTetra  pxt;
+  MMG5_Tria     ptt;
+  MMG5_pPoint   p0,p1,ppt;
+  MMG5_pxPoint  pxp;
+  double        dd,len,lmax,o[3],to[3],no1[3],no2[3],v[3];
+  int           k,ip,ip1,ip2,src,list[MMG3D_LMAX+2],ilist,lists[MMG3D_LMAX+2],ilists,ref;
+  int16_t       tag;
+  int8_t        imax,j,i,i1,i2,ifa0,ifa1;
+  int           lon,ret,ier;
+  double        lmin,lfilt;
+  int           imin,iq;
+  int           ii;
+  double        lmaxtet,lmintet,volmin;
+  int           imaxtet,imintet,base,countMemFailure;
+  int8_t        chkRidTet;
+  static int8_t mmgWarn0 = 0;
 
   countMemFailure = 0;
 
@@ -156,6 +156,7 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
 
       /* Case of a boundary face */
       if ( pt->xt && (pxt->ftag[i] & MG_BDY) ) {
+        if ( (p0->tag & MG_PARBDY) && (p1->tag & MG_PARBDY) ) continue;
         if ( !(MG_GET(pxt->ori,i)) ) continue;
         ref = pxt->edg[MMG5_iarf[i][j]];
         tag = pxt->tag[MMG5_iarf[i][j]];
@@ -198,19 +199,33 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
         else if ( tag & MG_REF ) {
           if ( !MMG5_BezierRef(mesh,ip1,ip2,0.5,o,no1,to) )
             goto collapse;
+          if ( MG_SIN(p0->tag) && MG_SIN(p1->tag) ) {
+            MMG5_tet2tri(mesh,k,i,&ptt);
+            MMG5_nortri(mesh,&ptt,no1);
+            if ( !MG_GET(pxt->ori,i) ) {
+              no1[0] *= -1.0;
+              no1[1] *= -1.0;
+              no1[2] *= -1.0;
+            }
+          }
         }
         else {
           if ( !MMG5_norface(mesh,k,i,v) )  goto collapse;
           if ( !MMG5_BezierReg(mesh,ip1,ip2,0.5,v,o,no1) ) goto collapse;
 
         }
-        ip = MMG3D_newPt(mesh,o,tag);
+#ifdef USE_POINTMAP
+        src = mesh->point[ip1].src;
+#else
+        src = 1;
+#endif
+        ip = MMG3D_newPt(mesh,o,tag,src);
         if ( !ip ) {
           /* reallocation of point table */
           MMG3D_POINT_REALLOC(mesh,met,ip,mesh->gap,
                                *warn=1;++countMemFailure;
                                goto collapse,
-                               o,tag);
+                               o,tag,src);
         }
         if ( met->m ) {
           if ( MMG5_intmet(mesh,met,k,imax,ip,0.5) <=0 ) {
@@ -287,14 +302,17 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
         o[0] = 0.5*(p0->c[0] + p1->c[0]);
         o[1] = 0.5*(p0->c[1] + p1->c[1]);
         o[2] = 0.5*(p0->c[2] + p1->c[2]);
-        ip = MMG3D_newPt(mesh,o,MG_NOTAG);
+#ifdef USE_POINTMAP
+        src = mesh->point[ip1].src;
+#endif
+        ip = MMG3D_newPt(mesh,o,MG_NOTAG,src);
 
         if ( !ip )  {
           /* reallocation of point table */
           MMG3D_POINT_REALLOC(mesh,met,ip,mesh->gap,
                                *warn=1;++countMemFailure;
                                goto collapse,
-                               o,MG_NOTAG);
+                               o,MG_NOTAG,src);
         }
         if ( met->m ) {
           if ( MMG5_intmet(mesh,met,k,imax,ip,0.5)<=0 ) {
@@ -332,14 +350,17 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
         o[0] = 0.5*(p0->c[0] + p1->c[0]);
         o[1] = 0.5*(p0->c[1] + p1->c[1]);
         o[2] = 0.5*(p0->c[2] + p1->c[2]);
-        ip = MMG3D_newPt(mesh,o,MG_NOTAG);
+#ifdef USE_POINTMAP
+        src = mesh->point[ip1].src;
+#endif
+        ip = MMG3D_newPt(mesh,o,MG_NOTAG,src);
 
         if ( !ip )  {
           /* reallocation of point table */
           MMG3D_POINT_REALLOC(mesh,met,ip,mesh->gap,
                                *warn=1;++countMemFailure;
                                goto collapse,
-                               o,MG_NOTAG);
+                               o,MG_NOTAG,src);
         }
         if ( met->m ) {
           if ( MMG5_intmet(mesh,met,k,imax,ip,0.5)<=0 ) {
@@ -436,7 +457,7 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
                                 list,&ilist,lists,&ilists,(p0->tag & MG_NOM)) < 0 )
           return -1;
 
-        ilist = MMG5_chkcol_bdy(mesh,met,k,i,j,list,ilist,lists,ilists,2);
+        ilist = MMG5_chkcol_bdy(mesh,met,k,i,j,list,ilist,lists,ilists,0,0,2,0,0);
         if ( ilist > 0 ) {
           ier = MMG5_colver(mesh,met,list,ilist,i2,2);
 
@@ -504,6 +525,7 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
 
         /* Case of a boundary face */
         if ( pt->xt && (pxt->ftag[i] & MG_BDY) ) {
+          if ( (p0->tag & MG_PARBDY) && (p1->tag & MG_PARBDY) ) continue;
           if ( !(MG_GET(pxt->ori,i)) ) continue;
           ref = pxt->edg[MMG5_iarf[i][j]];
           tag = pxt->tag[MMG5_iarf[i][j]];
@@ -546,19 +568,31 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
           else if ( tag & MG_REF ) {
             if ( !MMG5_BezierRef(mesh,ip1,ip2,0.5,o,no1,to) )
               goto collapse2;
+            if ( MG_SIN(p0->tag) && MG_SIN(p1->tag) ) {
+              MMG5_tet2tri(mesh,k,i,&ptt);
+              MMG5_nortri(mesh,&ptt,no1);
+              if ( !MG_GET(pxt->ori,i) ) {
+                no1[0] *= -1.0;
+                no1[1] *= -1.0;
+                no1[2] *= -1.0;
+              }
+            }
           }
           else {
             if ( !MMG5_norface(mesh,k,i,v) )  goto collapse2;
             if ( !MMG5_BezierReg(mesh,ip1,ip2,0.5,v,o,no1) ) goto collapse2;
 
           }
-          ip = MMG3D_newPt(mesh,o,tag);
+#ifdef USE_POINTMAP
+          src = mesh->point[ip1].src;
+#endif
+          ip = MMG3D_newPt(mesh,o,tag,src);
           if ( !ip ){
             /* reallocation of point table */
             MMG3D_POINT_REALLOC(mesh,met,ip,mesh->gap,
                                  *warn=1;++countMemFailure;
                                  goto collapse2//break
-                                 ,o,tag);
+                                 ,o,tag,src);
           }
           if ( met->m ) {
             if ( MMG5_intmet(mesh,met,k,imax,ip,0.5)<=0 ) {
@@ -637,14 +671,17 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
           o[0] = 0.5*(p0->c[0] + p1->c[0]);
           o[1] = 0.5*(p0->c[1] + p1->c[1]);
           o[2] = 0.5*(p0->c[2] + p1->c[2]);
-          ip = MMG3D_newPt(mesh,o,MG_NOTAG);
+#ifdef USE_POINTMAP
+          src = mesh->point[ip1].src;
+#endif
+          ip = MMG3D_newPt(mesh,o,MG_NOTAG,src);
 
           if ( !ip )  {
             /* reallocation of point table */
             MMG3D_POINT_REALLOC(mesh,met,ip,mesh->gap,
                                  *warn=1;++countMemFailure;
                                  goto collapse2
-                                 ,o,MG_NOTAG);
+                                 ,o,MG_NOTAG,src);
           }
           if ( met->m ) {
             if ( MMG5_intmet(mesh,met,k,imax,ip,0.5)<=0 ) {
@@ -681,14 +718,17 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
           o[0] = 0.5*(p0->c[0] + p1->c[0]);
           o[1] = 0.5*(p0->c[1] + p1->c[1]);
           o[2] = 0.5*(p0->c[2] + p1->c[2]);
-          ip = MMG3D_newPt(mesh,o,MG_NOTAG);
+#ifdef USE_POINTMAP
+          src = mesh->point[ip1].src;
+#endif
+          ip = MMG3D_newPt(mesh,o,MG_NOTAG,src);
 
           if ( !ip )  {
             /* reallocation of point table */
             MMG3D_POINT_REALLOC(mesh,met,ip,mesh->gap,
                                  *warn=1;++countMemFailure;
                                  goto collapse2,
-                                 o,MG_NOTAG);
+                                 o,MG_NOTAG,src);
           }
           if ( met->m ) {
             if ( MMG5_intmet(mesh,met,k,imax,ip,0.5)<=0 ) {
@@ -769,7 +809,7 @@ MMG5_boucle_for(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree *PROctree,int ne,
                                 list,&ilist,lists,&ilists,(p0->tag & MG_NOM)) < 0 )
           return -1;
 
-        ilist = MMG5_chkcol_bdy(mesh,met,k,i,j,list,ilist,lists,ilists,2);
+        ilist = MMG5_chkcol_bdy(mesh,met,k,i,j,list,ilist,lists,ilists,0,0,2,0,0);
         if ( ilist > 0 ) {
           ier = MMG5_colver(mesh,met,list,ilist,i2,2);
           if ( ier < 0 ) return -1;
@@ -1017,8 +1057,10 @@ MMG5_optetLES(MMG5_pMesh mesh, MMG5_pSol met,MMG3D_pPROctree PROctree) {
     if(it < 5) {
       nw = MMG3D_opttyp(mesh,met,PROctree,mesh->mark-2);
     }
-    else
+    else {
       nw = 0;
+    }
+
     /* badly shaped process */
     if ( !mesh->info.noswap ) {
       nf = MMG5_swptet(mesh,met,declic,MMG3D_SWAP06,PROctree,2,mesh->mark-2);
@@ -1252,7 +1294,7 @@ MMG5_adptet_delone(MMG5_pMesh mesh,MMG5_pSol met,MMG3D_pPROctree *PROctree,
   }
 
   /* renumerotation if available */
-  if ( !MMG5_scotchCall(mesh,met,permNodGlob) )
+  if ( !MMG5_scotchCall(mesh,met,NULL,permNodGlob) )
     return 0;
 
   if(mesh->info.optimLES) {
@@ -1324,7 +1366,7 @@ int MMG5_mmg3d1_delone(MMG5_pMesh mesh,MMG5_pSol met,int *permNodGlob) {
   }
 
   /* renumerotation if available */
-  if ( !MMG5_scotchCall(mesh,met,permNodGlob) ) {
+  if ( !MMG5_scotchCall(mesh,met,NULL,permNodGlob) ) {
     return 0;
   }
 

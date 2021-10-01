@@ -225,6 +225,16 @@ FORTRAN_NAME(MMG3D_GET_VERTEX,mmg3d_get_vertex,
   *retval = MMG3D_Get_vertex(*mesh,c0,c1,c2,ref,isCorner,isRequired);
   return;
 }
+/**
+ * See \ref MMG3D_GetByIdx_vertex function in \ref mmg3d/libmmg3d.h file.
+ */
+FORTRAN_NAME(MMG3D_GETBYIDX_VERTEX,mmg3d_getbyidx_vertex,
+             (MMG5_pMesh *mesh, double* c0, double* c1, double* c2, int* ref,
+              int* isCorner, int* isRequired, int* idx,int* retval),
+             (mesh,c0,c1,c2,ref,isCorner,isRequired,idx, retval)) {
+  *retval = MMG3D_GetByIdx_vertex(*mesh,c0,c1,c2,ref,isCorner,isRequired,*idx);
+  return;
+}
 
 /**
  * See \ref MMG3D_Set_vertices function in \ref mmg3d/libmmg3d.h file.
@@ -672,7 +682,15 @@ FORTRAN_NAME(MMG3D_GET_NORMALATVERTEX,mmg3d_get_normalatvertex,
   *retval = MMG3D_Get_normalAtVertex(*mesh,*k, n0, n1, n2);
   return;
 }
-
+/**
+ * See \ref MMG3D_Get_tetrahedronQuality function in \ref mmg3d/libmmg3d.h file.
+ */
+FORTRAN_NAME(MMG3D_GET_TETRAHEDRONQUALITY,mmg3d_get_tetrahedronquality,
+             (MMG5_pMesh *mesh, MMG5_pSol *met, int* k, double* retval),
+             (mesh,met,k,retval)) {
+  *retval = MMG3D_Get_tetrahedronQuality(*mesh,*met,*k);
+  return;
+}
 /**
  * See \ref MMG3D_Set_scalarSol function in \ref mmg3d/libmmg3d.h file.
  */
@@ -912,6 +930,28 @@ FORTRAN_NAME(MMG3D_SET_LOCALPARAMETER,mmg3d_set_localparameter,
   return;
 }
 
+/**
+ * See \ref MMG3D_Set_multiMat function in \ref mmg3d/libmmg3d.h file.
+ */
+FORTRAN_NAME(MMG3D_SET_MULTIMAT,mmg3d_set_multimat,
+             (MMG5_pMesh *mesh,MMG5_pSol *sol, int *ref,int *split,
+              int* rin,int* rex, int* retval),
+             (mesh,sol,ref,split,rin,rex,retval)){
+  *retval = MMG3D_Set_multiMat(*mesh,*sol,*ref,*split,*rin,*rex);
+  return;
+}
+
+/**
+ * See \ref MMG3D_Free_allSols function in \ref mmg3d/libmmg3d.h file.
+ */
+FORTRAN_NAME(MMG3D_FREE_ALLSOLS,mmg3d_free_allsols,
+             (MMG5_pMesh *mesh,MMG5_pSol *sol,int* retval),
+             (mesh,sol,retval)){
+
+  *retval = MMG3D_Free_allSols(*mesh,sol);
+
+  return;
+}
 /**
  * See \ref MMG3D_Free_all function in \ref mmg3d/libmmg3d.h file.
  */
@@ -1234,6 +1274,23 @@ FORTRAN_NAME(MMG3D_SAVEMSHMESH_AND_ALLDATA,mmg3d_savemshmesh_and_alldata,
 
   return;
 }
+
+/**
+ * See \ref MMG3D_saveTetgenMesh function in \ref mmg3d/libmmg3d.h file.
+ */
+FORTRAN_NAME(MMG3D_SAVETETGENMESH,mmg3d_savetetgenmesh,(MMG5_pMesh *mesh,char *meshin,int *strlen0, int* retval),
+             (mesh,meshin,strlen0,retval)){
+  char *tmp = NULL;
+
+  MMG5_SAFE_MALLOC(tmp,*strlen0+1,char,return);
+  strncpy(tmp,meshin,*strlen0);
+  tmp[*strlen0] = '\0';
+  *retval = MMG3D_saveTetgenMesh(*mesh,tmp);
+  MMG5_SAFE_FREE(tmp);
+
+  return;
+}
+
 
 /**
  * See \ref MMG3D_loadSol function in \ref mmg3d/libmmg3d.h file.

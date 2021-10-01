@@ -84,11 +84,13 @@ void MMG2D_Init_parameters(MMG5_pMesh mesh) {
 
   /* default values for integers */
   mesh->info.lag      = MMG5_LAG;
+  mesh->info.setfem   = MMG5_FEM;
   mesh->info.optim    = MMG5_OFF;
-  /* [0/1]    ,avoid/allow surface modifications */
+  /* [0/1]   ,avoid/allow surface modifications */
   mesh->info.nosurf   =  MMG5_OFF;
-  /* [0]    , Turn on/off the renumbering using SCOTCH */
+  /* [0/1/2] , set 3D mode for 2D mesh  */
   mesh->info.renum    = MMG5_OFF;
+  /* [0/1]   , set off/on normal regularization */
   mesh->info.nreg     = MMG5_OFF;
   /* default values for doubles */
   /* level set value */
@@ -136,6 +138,9 @@ int MMG2D_Set_iparameter(MMG5_pMesh mesh, MMG5_pSol sol, int iparam, int val){
       mesh->info.dhd    = MMG5_ANGEDG;
     }
     break;
+  case MMG2D_IPARAM_nofem :
+    mesh->info.setfem = (val==1)? 0 : 1;
+    break;
   case MMG2D_IPARAM_opnbdy :
     mesh->info.opnbdy = val;
     break;
@@ -160,11 +165,11 @@ int MMG2D_Set_iparameter(MMG5_pMesh mesh, MMG5_pSol sol, int iparam, int val){
     return 0;
 #endif
     break;
-  case MMG2D_IPARAM_msh :
-    mesh->info.nreg = val;
+  case MMG2D_IPARAM_3dMedit :
+    mesh->info.renum = val;
     break;
   case MMG2D_IPARAM_numsubdomain :
-    mesh->info.renum = val;
+    mesh->info.nsd = val;
     break;
   case MMG2D_IPARAM_optim :
     mesh->info.optim = val;
@@ -210,12 +215,31 @@ int MMG2D_Set_iparameter(MMG5_pMesh mesh, MMG5_pSol sol, int iparam, int val){
       mesh->info.par[k].hmax  = mesh->info.hmax;
     }
     break;
+  case MMG2D_IPARAM_numberOfMat :
+    if ( mesh->info.mat ) {
+      MMG5_DEL_MEM(mesh,mesh->info.mat);
+      if ( (mesh->info.imprim > 5) || mesh->info.ddebug )
+        fprintf(stderr,"\n  ## Warning: %s: new multi materials values\n",__func__);
+    }
+    mesh->info.nmat   = val;
+    mesh->info.nmati  = 0;
+
+    MMG5_ADD_MEM(mesh,(mesh->info.nmat)*sizeof(MMG5_Mat),"multi material",
+                 printf("  Exit program.\n");
+                 return 0);
+    MMG5_SAFE_CALLOC(mesh->info.mat,mesh->info.nmat,MMG5_Mat,return 0);
+    break;
+
+  case MMG2D_IPARAM_anisosize :
+    if ( !MMG2D_Set_solSize(mesh,sol,MMG5_Vertex,0,MMG5_Tensor) )
+      return 0;
+    break;
   default :
     fprintf(stderr,"\n  ## Error: %s: unknown type of parameter\n",__func__);
     return 0;
   }
   /* other options */
-  mesh->info.fem      = MMG5_OFF;
+
   return 1;
 }
 
@@ -229,9 +253,11 @@ int MMG2D_Set_dparameter(MMG5_pMesh mesh, MMG5_pSol sol, int dparam, double val)
     mesh->info.dhd = cos(mesh->info.dhd*M_PI/180.0);
     break;
   case MMG2D_DPARAM_hmin :
+    mesh->info.sethmin  = 1;
     mesh->info.hmin     = val;
     break;
   case MMG2D_DPARAM_hmax :
+    mesh->info.sethmax  = 1;
     mesh->info.hmax     = val;
     break;
   case MMG2D_DPARAM_hsiz :
@@ -358,6 +384,11 @@ int MMG2D_Set_localParameter(MMG5_pMesh mesh,MMG5_pSol sol, int typ, int ref,
   return 1;
 }
 
+int MMG2D_Set_multiMat(MMG5_pMesh mesh,MMG5_pSol sol,int ref,
+                       int split,int rin,int rout){
+  return MMG5_Set_multiMat(mesh,sol,ref,split,rin,rout);
+}
+
 
 int MMG2D_Set_meshSize(MMG5_pMesh mesh, int np, int nt, int nquad, int na) {
 
@@ -448,7 +479,7 @@ int MMG2D_Set_solSize(MMG5_pMesh mesh, MMG5_pSol sol, int typEntity, int np, int
 int MMG2D_Set_solsAtVerticesSize(MMG5_pMesh mesh, MMG5_pSol *sol,int nsols,
                                  int np, int *typSol) {
   MMG5_pSol psl;
-  char      data[16];
+  char      data[18];
   int       j;
 
   if ( ( (mesh->info.imprim > 5) || mesh->info.ddebug ) && mesh->nsols ) {
@@ -473,6 +504,11 @@ int MMG2D_Set_solsAtVerticesSize(MMG5_pMesh mesh, MMG5_pSol *sol,int nsols,
     /* Give an arbitrary name to the solution */
     sprintf(data,"sol_%d",j);
     if ( !MMG2D_Set_inputSolName(mesh,psl,data) ) {
+      return 0;
+    }
+    /* Give an arbitrary name to the solution */
+    sprintf(data,"sol_%d.o",j);
+    if ( !MMG2D_Set_outputSolName(mesh,psl,data) ) {
       return 0;
     }
 
@@ -618,6 +654,7 @@ int MMG2D_Unset_corner(MMG5_pMesh mesh, int k) {
 int MMG2D_Set_requiredVertex(MMG5_pMesh mesh, int k) {
   assert ( k <= mesh->np );
   mesh->point[k].tag |= MG_REQ;
+  mesh->point[k].tag &= ~MG_NUL;
   return 1;
 }
 
@@ -651,20 +688,33 @@ int MMG2D_Get_vertex(MMG5_pMesh mesh, double* c0, double* c1, int* ref,
     return 0;
   }
 
-  *c0  = mesh->point[mesh->npi].c[0];
-  *c1  = mesh->point[mesh->npi].c[1];
+  return MMG2D_GetByIdx_vertex( mesh,c0,c1,ref,isCorner,isRequired,mesh->npi);
+}
+
+int MMG2D_GetByIdx_vertex(MMG5_pMesh mesh, double* c0, double* c1, int* ref,
+                          int* isCorner, int* isRequired, int idx) {
+
+  if ( idx < 1 || idx > mesh->np ) {
+    fprintf(stderr,"\n  ## Error: %s: unable to get point at position %d.\n",
+            __func__,idx);
+    fprintf(stderr,"     Your vertices numbering goes from 1 to %d\n",mesh->np);
+    return 0;
+  }
+
+  *c0  = mesh->point[idx].c[0];
+  *c1  = mesh->point[idx].c[1];
   if ( ref != NULL )
-    *ref = mesh->point[mesh->npi].ref;
+    *ref = mesh->point[idx].ref;
 
   if ( isCorner != NULL ) {
-    if ( mesh->point[mesh->npi].tag & MG_CRN )
+    if ( mesh->point[idx].tag & MG_CRN )
       *isCorner = 1;
     else
       *isCorner = 0;
   }
 
   if ( isRequired != NULL ) {
-    if ( mesh->point[mesh->npi].tag & MG_REQ )
+    if ( mesh->point[idx].tag & MG_REQ )
       *isRequired = 1;
     else
       *isRequired = 0;
@@ -799,7 +849,7 @@ int MMG2D_Set_triangle(MMG5_pMesh mesh, int v0, int v1, int v2, int ref, int pos
     tmp = pt->v[2];
     pt->v[2] = pt->v[1];
     pt->v[1] = tmp;
-    /* mesh->xt temporary used to count reoriented tetra */
+    /* mesh->xt temporary used to count reoriented tria */
     mesh->xt++;
   }
   if ( mesh->info.ddebug && (mesh->nt == pos) && mesh->xt > 0 ) {
@@ -826,7 +876,6 @@ int MMG2D_Set_requiredTriangle(MMG5_pMesh mesh, int k) {
 
 int MMG2D_Unset_requiredTriangle(MMG5_pMesh mesh, int k) {
   MMG5_pTria pt;
-  int        i;
 
   assert ( k <= mesh->nt );
   pt = &mesh->tria[k];
@@ -929,7 +978,7 @@ int  MMG2D_Set_triangles(MMG5_pMesh mesh, int *tria, int *refs) {
       tmp = ptt->v[2];
       ptt->v[2] = ptt->v[1];
       ptt->v[1] = tmp;
-      /* mesh->xt temporary used to count reoriented quadra */
+      /* mesh->xt temporary used to count reoriented triangles */
       mesh->xt++;
     }
     if ( mesh->info.ddebug && mesh->xt > 0 ) {
@@ -1280,6 +1329,30 @@ int MMG2D_Get_edges(MMG5_pMesh mesh, int* edges,int *refs,int* areRidges,int* ar
   return 1;
 }
 
+double MMG2D_Get_triangleQuality(MMG5_pMesh mesh,MMG5_pSol met, int k) {
+  double qual = 0.;
+  MMG5_pTria pt;
+
+  if ( k < 1 || k > mesh->nt ) {
+    fprintf(stderr,"\n  ## Error: %s: unable to access to triangle %d.\n",
+            __func__,k);
+    fprintf(stderr,"     Tria numbering goes from 1 to %d\n",mesh->nt);
+    return 0.;
+  }
+  pt = &mesh->tria[k];
+  assert ( MG_EOK(pt) );
+
+  if ( (!met) || (!met->m) || met->size==1 ) {
+    /* iso quality */
+    qual =  MMG2D_ALPHAD * MMG2D_caltri_iso(mesh,NULL,pt);
+  }
+  else {
+    qual = MMG2D_ALPHAD * MMG2D_caltri_ani(mesh,met,pt);
+  }
+
+  return qual;
+}
+
 int MMG2D_Set_scalarSol(MMG5_pSol met, double s, int pos) {
 
   if ( !met->np ) {
@@ -1559,11 +1632,11 @@ int MMG2D_Set_tensorSols(MMG5_pSol met, double *sols) {
 
   for ( k=0; k<met->np; ++k ) {
     j = 3*k;
-    m = &met->m[j];
+    m = &met->m[j+3];
 
-    m[1] = sols[j];
-    m[2] = sols[j+1];
-    m[3] = sols[j+2];
+    m[0] = sols[j];
+    m[1] = sols[j+1];
+    m[2] = sols[j+2];
   }
   return 1;
 }
@@ -1574,11 +1647,11 @@ int MMG2D_Get_tensorSols(MMG5_pSol met, double *sols) {
 
   for ( k=0; k<met->np; ++k ) {
     j = 3*k;
-    m = &met->m[j];
+    m = &met->m[j+3];
 
-    sols[j]   = m[1];
-    sols[j+1] = m[2];
-    sols[j+2] = m[3];
+    sols[j]   = m[0];
+    sols[j+1] = m[1];
+    sols[j+2] = m[2];
   }
 
   return 1;
@@ -1741,6 +1814,12 @@ int MMG2D_Chk_meshData(MMG5_pMesh mesh,MMG5_pSol met) {
 
   return 1;
 }
+
+int MMG2D_Free_allSols(MMG5_pMesh mesh,MMG5_pSol *sol) {
+
+  return MMG5_Free_allSols(mesh,sol);
+}
+
 
 int MMG2D_Free_all(const int starter,...)
 {

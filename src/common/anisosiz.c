@@ -46,10 +46,10 @@
  */
 static inline
 double MMG5_surf(MMG5_pMesh mesh,double m[3][6],MMG5_pTria ptt) {
-  MMG5_Bezier   b;
+  MMG5_Bezier    b;
   double         surf,dens,J[3][2],mJ[3][2],tJmJ[2][2];
-  char           i,nullDens;
-  static char    mmgErr=0;
+  int8_t         i,nullDens;
+  static int8_t  mmgErr=0;
 
   surf = 0.0;
 
@@ -90,7 +90,7 @@ double MMG5_surf(MMG5_pMesh mesh,double m[3][6],MMG5_pTria ptt) {
 
     dens = tJmJ[0][0]*tJmJ[1][1] - tJmJ[1][0]*tJmJ[0][1];
     if ( dens <= MMG5_EPSD2 ) {
-#ifndef DNDEBUG
+#ifndef NDEBUG
       if ( !mmgErr ) {
         fprintf(stderr,"\n  ## Warning: %s: at least 1 negative or null density.\n",
                 __func__);
@@ -123,7 +123,7 @@ double MMG5_surftri_ani(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pTria ptt) {
   MMG5_pPoint    p[3];
   int            np[3];
   double         ux,uy,uz,m[3][6],rbasis[3][3];
-  char           i1,i2;
+  int8_t         i1,i2;
   int            i;
 
   for (i=0; i<3; i++) {
@@ -538,11 +538,11 @@ int MMG5_solveDefmetrefSys( MMG5_pMesh mesh, MMG5_pPoint p0, int ipref[2],
                              double tAA[6], double tAb[3], double *m,
                              double isqhmin, double isqhmax, double hausd)
 {
-  MMG5_pPoint  p1;
-  double       intm[3], kappa[2], vp[2][2], b0[3], b1[3], b2[3], kappacur;
-  double       gammasec[3],tau[2], ux, uy, uz, ps1, l, ll, *t, *t1;
-  int          i;
-  static char  mmgWarn=0;
+  MMG5_pPoint   p1;
+  double        intm[3], kappa[2], vp[2][2], b0[3], b1[3], b2[3], kappacur;
+  double        gammasec[3],tau[2], ux, uy, uz, ps1, l, ll, *t, *t1;
+  int           i;
+  static int8_t mmgWarn=0;
 
   memset(intm,0x0,3*sizeof(double));
 
@@ -917,7 +917,7 @@ int MMG5_grad2metSurf(MMG5_pMesh mesh, MMG5_pSol met, MMG5_pTria pt, int np1,
   double       /*,l1,l2*/l,dd;
   double       lambda[2],vp[2][2],alpha,beta,mu[3];
   int          kmin,idx;
-  char         ichg;
+  int8_t       ichg;
 
   p1 = &mesh->point[np1];
   p2 = &mesh->point[np2];
@@ -1262,8 +1262,8 @@ int MMG5_grad2metSurf(MMG5_pMesh mesh, MMG5_pSol met, MMG5_pTria pt, int np1,
 int MMG5_simred(MMG5_pMesh mesh,double *m,double *n,double dm[2],
                  double dn[2],double vp[2][2] ) {
 
-  double       det,dd,sqDelta,trimn,vnorm,lambda[2],imn[4];
-  static char  mmgWarn0=0;
+  double         det,dd,sqDelta,trimn,vnorm,lambda[2],imn[4];
+  static int8_t  mmgWarn0=0;
 
   /* Compute imn = M^{-1}N */
   det = m[0]*m[2] - m[1]*m[1];
@@ -1576,18 +1576,35 @@ int MMG5_grad2metSurfreq(MMG5_pMesh mesh, MMG5_pSol met, MMG5_pTria pt, int npma
      * of the singular points. Thus:
      * lambda_new = = 0.5 lambda_1 + 0.5 lambda_new = lambda_1 + 0.5 beta.
      * with beta the smallest variation of the eigenvalues (lambda_new-lambda_1). */
-    assert ( fabs(mm2[0]-mm2[3]) < MMG5_EPSOK && fabs(mm2[3]-mm2[5]) < MMG5_EPSOK
-             && "iso metric?" );
 
-    beta = mu[0] - mm2[0];
-
-    if ( fabs(beta) < fabs(mm2[0]-mu[1]) ) {
-      beta = mu[1] - mm2[0];
+    /* This point can have an anisotropic metric if a user-provided metric is
+     * found. So, compute the eigenvalues. */
+    double ll[3],rr[3][3],llmin;
+    int i;
+    if( !MMG5_eigenv(1,mm2,ll, rr) ) {
+      return 0;
     }
-    mm2[0] += 0.5*beta;
-    mm2[3] += 0.5*beta;
-    mm2[5] += 0.5*beta;
-    assert ( mm2[0]>0. && mm2[3]>0. && mm2[5]>0. );
+    llmin = DBL_MAX;
+    for( i = 0; i < 3; i++ )
+      if( ll[i] < llmin )
+        llmin = ll[i];
+
+
+    beta = mu[0] - llmin;
+
+    if ( fabs(beta) < fabs(llmin-mu[1]) ) {
+      beta = mu[1] - llmin;
+    }
+    ll[0] += 0.5*beta;
+    ll[1] += 0.5*beta;
+    ll[2] += 0.5*beta;
+    assert ( ll[0]>0. && ll[1]>0. && ll[2]>0. );
+    mm2[0] = ll[0]*rr[0][0]*rr[0][0] + ll[1]*rr[1][0]*rr[1][0] + ll[2]*rr[2][0]*rr[2][0];
+    mm2[1] = ll[0]*rr[0][0]*rr[0][1] + ll[1]*rr[1][0]*rr[1][1] + ll[2]*rr[2][0]*rr[2][1];
+    mm2[2] = ll[0]*rr[0][0]*rr[0][2] + ll[1]*rr[1][0]*rr[1][2] + ll[2]*rr[2][0]*rr[2][2];
+    mm2[3] = ll[0]*rr[0][1]*rr[0][1] + ll[1]*rr[1][1]*rr[1][1] + ll[2]*rr[2][1]*rr[2][1];
+    mm2[4] = ll[0]*rr[0][1]*rr[0][2] + ll[1]*rr[1][1]*rr[1][2] + ll[2]*rr[2][1]*rr[2][2];
+    mm2[5] = ll[0]*rr[0][2]*rr[0][2] + ll[1]*rr[1][2]*rr[1][2] + ll[2]*rr[2][2]*rr[2][2];
   }
   else if ( p2->tag & MG_GEO ){
     if ( !MMG5_updatemetreq_ani(mtan2,mu,vp) ) { return 0; }
@@ -1740,7 +1757,7 @@ int MMG5_gradsiz_ani(MMG5_pMesh mesh,MMG5_pSol met,int *it) {
   MMG5_pTria   pt;
   MMG5_pPoint  p1,p2;
   int          k,nup,nu,maxit,np1,np2,ier;
-  char         i;
+  int8_t       i;
 
   /** Mark the edges belonging to a required entity */
   MMG5_mark_pointsOnReqEdge_fromTria ( mesh );
@@ -1803,7 +1820,7 @@ int MMG5_gradsizreq_ani(MMG5_pMesh mesh,MMG5_pSol met) {
   MMG5_pTria        pt;
   MMG5_pPoint       p1,p2;
   int               k,it,np1,np2,npslave,npmaster,maxit,nup,nu,ier;
-  char              i;
+  int8_t            i;
 
 
   if ( abs(mesh->info.imprim) > 5 || mesh->info.ddebug ) {

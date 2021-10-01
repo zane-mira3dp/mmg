@@ -32,6 +32,7 @@ GET_FILENAME_COMPONENT ( SHRT_EXECUT_MMGS ${EXECUT_MMGS} NAME )
 SET ( test_names mmgs_SimpleTeapot )
 SET ( input_files ${MMGS_CI_TESTS}/Teapot/teapot )
 SET ( args  "-v 5" )
+SET ( common_args "" )
 
 ADD_RUN_AGAIN_TESTS ( ${EXECUT_MMGS} "${test_names}" "${args}" "${input_files}" )
 
@@ -52,7 +53,7 @@ ADD_TEST(NAME mmgs_SphereAni
 ###############################################################################
 
 ADD_TEST(NAME mmgs_memOption
-  COMMAND ${EXECUT_MMGS} -v 5 -m 100
+  COMMAND ${EXECUT_MMGS} -v 5 -m 100 ${common_args}
   ${MMGS_CI_TESTS}/Teapot/teapot
   -out ${CTEST_OUTPUT_DIR}/mmgs_memOption.o.meshb)
 
@@ -60,6 +61,12 @@ ADD_TEST(NAME mmgs_val
   COMMAND ${EXECUT_MMGS} -val
   ${MMGS_CI_TESTS}/Teapot/teapot
   )
+
+# nsd
+ADD_TEST(NAME mmgs_nsd24
+  COMMAND ${EXECUT_MMGS} -v 5 -nsd 24 ${common_args}
+  ${MMGS_CI_TESTS}/Teapot/teapot
+  -out ${CTEST_OUTPUT_DIR}/mmgs_nsd24.o.meshb)
 
 #ADD_TEST(NAME mmgs_default
 #  COMMAND ${EXECUT_MMGS} -default
@@ -77,13 +84,13 @@ SET_PROPERTY(TEST mmgs_val #mmgs_default
 
 # Binary gmsh
 ADD_TEST(NAME mmgs_binary_gmsh_s
-  COMMAND ${EXECUT_MMGS} -v 5
+  COMMAND ${EXECUT_MMGS} -v 5 ${common_args}
   ${MMGS_CI_TESTS}/GmshInout/cube.mshb
   ${CTEST_OUTPUT_DIR}/)
 
 # Ascii gmsh
 ADD_TEST(NAME mmgs_ascii_gmsh_s
-  COMMAND ${EXECUT_MMGS} -v 5
+  COMMAND ${EXECUT_MMGS} -v 5 ${common_args}
   ${MMGS_CI_TESTS}/GmshInout/cube.msh
   ${CTEST_OUTPUT_DIR}/mmgs-cube-gmsh.o.msh)
 
@@ -128,9 +135,14 @@ ENDIF ( )
 #####
 ###############################################################################
 ADD_TEST(NAME mmgs_Rhino_M
-  COMMAND ${EXECUT_MMGS} -v 5
+  COMMAND ${EXECUT_MMGS} -v 5 ${common_args}
   ${MMGS_CI_TESTS}/Rhino_M/rhino -hausd 1
   -out ${CTEST_OUTPUT_DIR}/mmgs_Rhino_M-rhino.d.meshb)
+
+ADD_TEST(NAME mmgs_moebius
+  COMMAND ${EXECUT_MMGS} -v 5 ${common_args} -d
+  ${MMGS_CI_TESTS}/Moebius-strip/moebius-strip.mesh -nr
+  -out ${CTEST_OUTPUT_DIR}/mmgs_moebius-strip.d.mesh)
 
 ###############################################################################
 #####
@@ -138,7 +150,7 @@ ADD_TEST(NAME mmgs_Rhino_M
 #####
 ###############################################################################
 ADD_TEST(NAME mmgs_Cow_NM_hausd10
-  COMMAND ${EXECUT_MMGS} -v 5
+  COMMAND ${EXECUT_MMGS} -v 5 ${common_args}
   ${MMGS_CI_TESTS}/Cow_NM/cow -hausd 10
   -out ${CTEST_OUTPUT_DIR}/mmgs_Cow_NM_hausd10-cow.d.meshb)
 
@@ -162,22 +174,22 @@ SET_PROPERTY(TEST mmgs_OptLs_val #mmgs_OptLs_default
 
 
 ADD_TEST(NAME mmgs_OptLs_teapot
-  COMMAND ${EXECUT_MMGS} -v 5 -ls
+  COMMAND ${EXECUT_MMGS} -v 5 -ls ${common_args}
   ${MMGS_CI_TESTS}/OptLs_teapot/teapot
   ${CTEST_OUTPUT_DIR}/mmgs_OptLs_teapot-teapot.simple.o.meshb)
 
 ADD_TEST(NAME mmgs_OptLs_teapot_keepRef
-  COMMAND ${EXECUT_MMGS} -v 5 -ls -keep-ref
+  COMMAND ${EXECUT_MMGS} -v 5 -ls -keep-ref ${common_args}
   ${MMGS_CI_TESTS}/OptLs_teapot/teapot
   ${CTEST_OUTPUT_DIR}/mmgs_OptLs_teapot_keepRef-teapot.keep-ref.o.meshb)
 
 ADD_TEST(NAME mmgs_OptLs_teapot_0.5_keepRef
-  COMMAND ${EXECUT_MMGS} -v 5 -ls 0.5 -keep-ref
+  COMMAND ${EXECUT_MMGS} -v 5 -ls 0.5 -keep-ref ${common_args}
   ${MMGS_CI_TESTS}/OptLs_teapot/teapot
   ${CTEST_OUTPUT_DIR}/mmgs_OptLs_teapot_0.5_keepRef-teapot.0.5.keep-ref.o.meshb)
 
 ADD_TEST(NAME mmgs_OptLs_teapot2
-  COMMAND ${EXECUT_MMGS} -v 5 -ls -nr
+  COMMAND ${EXECUT_MMGS} -v 5 -ls -nr ${common_args}
   ${MMGS_CI_TESTS}/OptLs_teapot/teapot
   ${CTEST_OUTPUT_DIR}/mmgs_OptLs_teapot2-teapot.o.meshb)
 
@@ -193,6 +205,19 @@ ADD_TEST(NAME mmgs_2squares-withSol
   ${MMG2D_CI_TESTS}/2squares/2squares -sol ${MMG2D_CI_TESTS}/2squares/2s.sol
   -out ${CTEST_OUTPUT_DIR}/mmgs_2squares-sol.o.meshb)
 
+####### orphan points
+ADD_TEST(NAME mmgs_2squares-orphan
+  COMMAND ${EXECUT_MMGS} -v 5 -nsd 10
+  ${MMG2D_CI_TESTS}/2squares/2squares
+  -out ${CTEST_OUTPUT_DIR}/mmgs_2squares-orphan.o.meshb)
+
+
+# nsd + ls
+ADD_TEST(NAME mmgs_OptLs_teapot-nsd3
+  COMMAND ${EXECUT_MMGS} -v 5 -ls -nsd 3 ${common_args}
+  ${MMGS_CI_TESTS}/OptLs_teapot/teapot
+  ${CTEST_OUTPUT_DIR}/mmgs_OptLs_teapot-ls-nsd3.o.meshb)
+
 
 ###############################################################################
 #####
@@ -200,12 +225,12 @@ ADD_TEST(NAME mmgs_2squares-withSol
 #####
 ###############################################################################
 ADD_TEST(NAME mmgs_Car_NM
-  COMMAND ${EXECUT_MMGS} -v 5
+  COMMAND ${EXECUT_MMGS} -v 5 ${common_args}
   ${MMGS_CI_TESTS}/Car_NM/car
   -out ${CTEST_OUTPUT_DIR}/mmgs_Car_NM-car.d.meshb)
 
 ADD_TEST(NAME mmgs_Cow_NM_hausd20
-  COMMAND ${EXECUT_MMGS} -v 5
+  COMMAND ${EXECUT_MMGS} -v 5 ${common_args}
   ${MMGS_CI_TESTS}/Cow_NM/cow -hausd 20
   -out ${CTEST_OUTPUT_DIR}/mmgs_Cow_NM_hausd20-cow.d.meshb)
 

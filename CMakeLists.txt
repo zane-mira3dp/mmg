@@ -20,7 +20,7 @@
 ##  use this copy of the mmg distribution only if you accept them.
 ## =============================================================================
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 
 # if PROJECT_NAME is defined, mmg is a subproject
 if(DEFINED PROJECT_NAME)
@@ -55,10 +55,11 @@ include(GNUInstallDirs)
 #####         Release version and date
 #####
 ###############################################################################
+
 SET (CMAKE_RELEASE_VERSION_MAJOR "5" )
-SET (CMAKE_RELEASE_VERSION_MINOR "4" )
-SET (CMAKE_RELEASE_VERSION_PATCH "3" )
-SET (CMAKE_RELEASE_DATE "Feb. 26, 2020" )
+SET (CMAKE_RELEASE_VERSION_MINOR "5" )
+SET (CMAKE_RELEASE_VERSION_PATCH "2" )
+SET (CMAKE_RELEASE_DATE "Nov. 17, 2020" )
 
 SET (CMAKE_RELEASE_VERSION
   "${CMAKE_RELEASE_VERSION_MAJOR}.${CMAKE_RELEASE_VERSION_MINOR}.${CMAKE_RELEASE_VERSION_PATCH}")
@@ -70,15 +71,26 @@ SET (CMAKE_RELEASE_VERSION
 ###############################################################################
 IF (NOT WIN32)
   # Set preprocessor flags to say that we are posix and gnu compatible
-  SET (DEF_POSIX "#define POSIX")
-  SET (DEF_GNU "#define GNU")
+  SET (DEF_POSIX "#define MMG_POSIX")
+  SET (DEF_GNU "#define MMG_GNU")
 ELSEIF(MINGW)
-  SET (DEF_GNU "#define GNU")
+  SET (DEF_GNU "#define MMG_GNU")
 ENDIF ()
 
-# Create mmgcommon.h file with the good release and architecture infos.
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/src/common/mmgcommon.h.in
-  ${PROJECT_BINARY_DIR}/src/common/mmgcommon.h @ONLY)
+# Do not print warnings about the use of secure function with MSVC
+if ( MSVC )
+  add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+  add_definitions(-Dstrdup=_strdup)
+endif()
+
+# Create mmgcmakedefines.h file with the architecture infos and
+# the definition ot the USE_POINTMAP flag.
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/src/common/mmgcmakedefines.h.in
+  ${PROJECT_BINARY_DIR}/src/common/mmgcmakedefines.h @ONLY)
+
+# Create mmgversion.h file with the release infos
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/src/common/mmgversion.h.in
+  ${PROJECT_BINARY_DIR}/src/common/mmgversion.h @ONLY)
 
 ###############################################################################
 #####
@@ -101,7 +113,6 @@ MARK_AS_ADVANCED(CMAKE_OSX_ARCHITECTURES
   CMAKE_OSX_SYSROOT)
 
 IF(CMAKE_COMPILER_IS_GNUCC)
-  SET(CMAKE_C_FLAGS " -Wno-char-subscripts ${CMAKE_C_FLAGS}")
   IF(APPLE)
     # Add flags to the compiler to work on old mac
     ADD_DEFINITIONS( -mmacosx-version-min=10.4 -arch x86_64)
@@ -179,13 +190,20 @@ IF ( BUILD_MMG3D OR BUILD_MMGS )
 ELSE ()
   SET(BUILD_MMGS3D OFF)
 ENDIF()
+
+# Explicitly set the DNDEBUG flag in case the user or a parent project overrides
+# it.
+if (NOT CMAKE_BUILD_TYPE MATCHES Debug)
+    add_definitions(-DNDEBUG)
+endif()
+
 ############################################################################
 #####
 #####         Fortran header: libmmgtypesf.h
 #####
 ############################################################################
 ADD_EXECUTABLE(genheader ${PROJECT_SOURCE_DIR}/scripts/genheader.c)
-TARGET_LINK_LIBRARIES ( genheader ${LIBRARIES}  )
+TARGET_LINK_LIBRARIES ( genheader PRIVATE ${LIBRARIES}  )
 GENERATE_FORTRAN_HEADER ( mmg
   ${COMMON_SOURCE_DIR} libmmgtypes.h
   ${COMMON_BINARY_DIR}
@@ -199,7 +217,7 @@ GENERATE_FORTRAN_HEADER ( mmg
 ###############################################################################
 
 # Libraries
-IF ( NOT WIN32 OR MINGW )
+IF ( NOT (WIN32 OR MINGW) )
 
   IF(NOT DEFINED M_LIB)
     MESSAGE(STATUS "M_LIB not defined. Searching it")
@@ -209,6 +227,15 @@ IF ( NOT WIN32 OR MINGW )
   MARK_AS_ADVANCED(FORCE M_LIB)
   SET( LIBRARIES ${M_LIB} ${LIBRARIES})
 ENDIF()
+
+############################################################################
+#####
+#####         Point map
+#####
+############################################################################
+
+# add point map?
+OPTION ( USE_POINTMAP "Use map for point tracking" OFF )
 
 ############################################################################
 #####
@@ -312,6 +339,9 @@ ENDFUNCTION()
 
 OPTION(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 INVERT_BOOL("BUILD_STATIC_LIBS" ${BUILD_SHARED_LIBS})
+IF ( (${BUILD_STATIC_LIBS} EQUAL ON) AND NOT CMAKE_POSITION_INDEPENDENT_CODE)
+  SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
+ENDIF()
 
 #------------------------------- mmg2d
 CMAKE_DEPENDENT_OPTION ( LIBMMG2D_STATIC "Compile the mmg2d static library" ${BUILD_STATIC_LIBS}
@@ -389,8 +419,12 @@ ENDIF()
 IF ( VTK_FOUND )
   ADD_DEFINITIONS(-DUSE_VTK)
 
-  MESSAGE ( STATUS "Compilation with VTK: add vtp and vtu I/O." )
-  INCLUDE ( ${VTK_USE_FILE} )
+  MESSAGE ( STATUS "Compilation with VTK: add vtk, vtp and vtu I/O." )
+
+  IF( "${VTK_MAJOR_VERSION}.${VTK_MINOR_VERSION}" LESS 8.90 )
+    INCLUDE ( ${VTK_USE_FILE} )
+  ENDIF()
+
   SET( LIBRARIES ${VTK_LIBRARIES} ${LIBRARIES} )
 ENDIF ( )
 
@@ -430,6 +464,17 @@ CMAKE_DEPENDENT_OPTION(
 ###############################################################################
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
 
+# CTEST_OUTPUT_DIR MUST BE SETTED HERE TO AVOID UNINITIALIZATION FOR LIBRARY
+# TESTS DEFS
+OPTION ( BUILD_TESTING "Enable/Disable continuous integration" OFF )
+
+IF( BUILD_TESTING )
+  SET ( CTEST_OUTPUT_DIR ${PROJECT_BINARY_DIR}/TEST_OUTPUTS
+    CACHE PATH "Path toward the tests outputs" )
+  MARK_AS_ADVANCED ( CTEST_OUTPUT_DIR )
+  FILE ( MAKE_DIRECTORY  ${CTEST_OUTPUT_DIR} )
+ENDIF ( )
+
 IF ( BUILD_MMG2D )
   INCLUDE(cmake/modules/mmg2d.cmake)
 ENDIF ( )
@@ -448,7 +493,7 @@ ENDIF ( )
 
 IF( SCOTCH_FOUND )
   # Include Scotch Dir here to ensure that Mmg doesn't search it's own headers in /usr/local
-  INCLUDE_DIRECTORIES(PUBLIC ${SCOTCH_INCLUDE_DIRS})
+  INCLUDE_DIRECTORIES(${SCOTCH_INCLUDE_DIRS})
 ENDIF()
 
 IF ( MmgTargetsExported )
@@ -478,8 +523,6 @@ ENDIF()
 #####
 ###############################################################################
 
-OPTION ( BUILD_TESTING "Enable/Disable continuous integration" OFF )
-
 CMAKE_DEPENDENT_OPTION (
   ONLY_VERY_SHORT_TESTS "Enable/Disable very short tests" OFF
   "BUILD_TESTING;NOT LONG_TESTS" OFF )
@@ -495,15 +538,12 @@ CMAKE_DEPENDENT_OPTION ( COVERAGE "Watch code coverage (Linux only)" OFF
 
 IF( BUILD_TESTING )
 
-  SET ( CTEST_OUTPUT_DIR ${PROJECT_BINARY_DIR}/TEST_OUTPUTS )
-  FILE ( MAKE_DIRECTORY  ${CTEST_OUTPUT_DIR} )
-
   IF ( NOT ONLY_VERY_SHORT_TESTS )
     ##-------------------------------------------------------------------##
     ##------- Get the continuous integration tests ----------------------##
     ##-------------------------------------------------------------------##
     INCLUDE(cmake/modules/LoadCiTests.cmake)
-ENDIF ( )
+  ENDIF ( )
 
   ##-------------------------------------------------------------------##
   ##------- Set the continuous integration options --------------------##
@@ -557,18 +597,22 @@ ENDIF ( )
     SET(LISTEXEC_MMG ${LISTEXEC_MMGS} ${LISTEXEC_MMG3D})
     SET(EXECUT_MMG ${EXECUT_MMGS} ${EXECUT_MMG3D})
 
-    # Change authorisations for some files...
-    IF ( EXISTS ${CTEST_OUTPUT_DIR}/LeakCheck_AbnormalEnd7/unreadable.meshb)
-      FILE(REMOVE ${CTEST_OUTPUT_DIR}/LeakCheck_AbnormalEnd7/unwrittable.meshb)
+    # Make some files not openable
+    IF ( EXISTS ${CTEST_OUTPUT_DIR}/unwrittable7.meshb
+        AND NOT IS_DIRECTORY ${CTEST_OUTPUT_DIR}/unwrittable7.meshb )
+      FILE ( REMOVE ${CTEST_OUTPUT_DIR}/unwrittable7.meshb )
+    ENDIF ()
+    IF ( NOT EXISTS ${CTEST_OUTPUT_DIR}/unwrittable7.meshb)
+      FILE(MAKE_DIRECTORY ${CTEST_OUTPUT_DIR}/unwrittable7.meshb)
     ENDIF()
-    FILE(COPY ${MMG_CI_TESTS}/LeakCheck_AbnormalEnd7/dout.mesh
-      DESTINATION ${CTEST_OUTPUT_DIR}/AbnormalEnd7/unwrittable.meshb)
 
-    IF ( EXISTS ${CTEST_OUTPUT_DIR}/LeakCheck_AbnormalEnd8/unwrittable.sol)
-      FILE(REMOVE ${CTEST_OUTPUT_DIR}/LeakCheck_AbnormalEnd8/unwrittable.sol)
+    IF ( EXISTS ${CTEST_OUTPUT_DIR}/unwrittable8.sol
+        AND NOT IS_DIRECTORY ${CTEST_OUTPUT_DIR}/unwrittable8.sol )
+      FILE ( REMOVE ${CTEST_OUTPUT_DIR}/unwrittable8.sol )
+    ENDIF ()
+    IF ( NOT EXISTS ${CTEST_OUTPUT_DIR}/unwrittable8.sol)
+      FILE(MAKE_DIRECTORY ${CTEST_OUTPUT_DIR}/unwrittable8.sol)
     ENDIF()
-    FILE(COPY ${MMG_CI_TESTS}/LeakCheck_AbnormalEnd8/dsol.sol
-      DESTINATION ${CTEST_OUTPUT_DIR}/AbnormalEnd8/unwrittable.sol)
 
     # Add common tests for mmgs/3d appli
     INCLUDE( ${PROJECT_SOURCE_DIR}/cmake/testing/mmg_tests.cmake )
@@ -586,7 +630,7 @@ ENDIF ( BUILD_TESTING )
 IF (NOT WIN32 OR MINGW)
 
   ADD_CUSTOM_TARGET(GenerateGitHash
-    COMMAND ./git_log_mmg.sh ${PROJECT_SOURCE_DIR} ${PROJECT_BINARY_DIR}
+    COMMAND ./git_log_mmg.sh ${PROJECT_SOURCE_DIR} ${COMMON_BINARY_DIR}
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/scripts/
     COMMENT "Getting git commit hash"
   )
@@ -681,33 +725,5 @@ SET(CPACK_PACKAGE_INSTALL_DIRECTORY "${PROJECT_NAME}-${CPACK_PACKAGE_VERSION}")
 SET(CPACK_PACKAGE_FILE_NAME ${CPACK_PACKAGE_INSTALL_DIRECTORY}-${CMAKE_SYSTEM})
 SET(CPACK_PACKAGE_EXECUTABLES "${PROJECT_NAME}")
 SET(CPACK_OUTPUT_FILE_PREFIX "../archives")
-
-#SET(CPACK_SOURCE_IGNORE_FILES ";src/common/mmgtypes.h$" ${CPACK_SOURCE_IGNORE_FILE})
-#SET(CPACK_SOURCE_IGNORE_FILES ";.\\\\\\\\.#;/\\\\\\\\.git;.~;.#;.-e;.DS_Store"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_IGNORE_FILES ";lib/;bin;archives;def"
-#  ${CPACK_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";.dir-locals.el;.tm_properties"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";libexamples/mmg3d/example0/example0_a/mesh.o.*"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";libexamples/mmg3d/example0/example0_b/mesh.o.*"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";libexamples/mmg3d/example1/result0.*"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";libexamples/mmg3d/example2/result1.*"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";libexamples/mmg3d/example3/SphereIso.*"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";CMakeFiles" ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";cmake/supp/libSystem.supp"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";CTestConfig.cmake" ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";cmake/testing/testing.cmake"
-#  ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";.#$"      ${CPACK_SOURCE_IGNORE_FILES})
-#SET(CPACK_SOURCE_IGNORE_FILES ";build*" ${CPACK_SOURCE_IGNORE_FILES}  )
-#SET(CPACK_SOURCE_IGNORE_FILES ";doc/doxygen/.*/html;doc/doxygen/.*/Doxyfile$"
-#  ${CPACK_SOURCE_IGNORE_FILES}  )
 
 INCLUDE(CPack)

@@ -83,6 +83,8 @@ enum MMG3D_Param {
   MMG3D_IPARAM_nreg,                      /*!< [0/1], Enable normal regularization */
   MMG3D_IPARAM_numberOfLocalParam,        /*!< [n], Number of local parameters */
   MMG3D_IPARAM_numberOfLSBaseReferences,   /*!< [n], Number of base references for bubble removal */
+  MMG3D_IPARAM_numberOfMat,               /*!< [n], Number of material in ls mode */
+  MMG3D_IPARAM_numsubdomain,              /*!< [0/n], Save the subdomain nb (0==all subdomain) */
   MMG3D_IPARAM_renum,                     /*!< [1/0], Turn on/off point relocation with Scotch */
   MMG3D_IPARAM_anisosize,                 /*!< [1/0], Turn on/off anisotropic metric creation when no metric is provided */
   MMG3D_IPARAM_octree,                    /*!< [n], Specify the max number of points per PROctree cell (DELAUNAY) */
@@ -1196,6 +1198,28 @@ enum MMG3D_Param {
   int  MMG3D_Set_localParameter(MMG5_pMesh mesh, MMG5_pSol sol, int typ,
                                 int ref,double hmin,double hmax,double hausd);
 
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param sol pointer toward the sol structure.
+ * \param ref input tetra reference.
+ * \param split MMG5_MMAT_NoSplit if the entity must not be splitted, MMG5_MMAT_Split otherwise
+ * \param rin internal reference after ls discretization
+ * \param rex external reference after ls discretization
+ * \return 0 if failed, 1 otherwise.
+ *
+ * Set the reference mapping for the elements of ref \a ref in ls discretization mode.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG3D_SET_MULTIMAT(mesh,sol,ref,split,rin,rex,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh,sol\n
+ * >     INTEGER, INTENT(IN)           :: ref,split,rin,rex\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int  MMG3D_Set_multiMat(MMG5_pMesh mesh, MMG5_pSol sol,int ref,int split,
+                          int rin, int rex);
+
 /** recover datas */
 /**
  * \param mesh pointer toward the mesh structure.
@@ -1293,6 +1317,32 @@ enum MMG3D_Param {
  */
   int  MMG3D_Get_vertex(MMG5_pMesh mesh, double* c0, double* c1, double* c2,
                         int* ref,int* isCorner, int* isRequired);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param c0 pointer toward the coordinate of the point along the first dimension.
+ * \param c1 pointer toward the coordinate of the point along the second dimension.
+ * \param c2 pointer toward the coordinate of the point along the third dimension.
+ * \param ref pointer to the point reference.
+ * \param isCorner pointer toward the flag saying if point is corner.
+ * \param isRequired pointer toward the flag saying if point is required.
+ * \param idx index of point to get.
+ * \return 1.
+ *
+ * Get coordinates \a c0, \a c1, \a c2 and reference \a ref of
+ * vertex \a idx of mesh.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG3D_GETBYIDX_VERTEX(mesh,c0,c1,c2,ref,isCorner,isRequired,idx,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh\n
+ * >     REAL(KIND=8), INTENT(OUT)     :: c0,c1,c2\n
+ * >     INTEGER                       :: ref,isCorner,isRequired,idx\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+ int  MMG3D_GetByIdx_vertex(MMG5_pMesh mesh, double* c0, double* c1, double* c2, int* ref,
+                            int* isCorner, int* isRequired,int idx);
 
 /**
  * \param mesh pointer toward the mesh structure.
@@ -1615,6 +1665,24 @@ enum MMG3D_Param {
  */
   int  MMG3D_Get_normalAtVertex(MMG5_pMesh mesh, int k, double *n0, double *n1,
                                 double *n2) ;
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param met pointer toward the metric structure.
+ * \param k index of the tetra for which we want to get the quality.
+ * \return the computed quality or 0. if fail.
+ *
+ * Get quality of tetra \a k.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG3D_GET_TETRAHEDRONQUALITY(mesh,met,k,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh,met\n
+ * >     INTEGER, INTENT(IN)           :: k\n
+ * >     REAL(KIND=8), INTENT(OUT)     :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  double MMG3D_Get_tetrahedronQuality(MMG5_pMesh mesh,MMG5_pSol met, int k);
 
 /**
  * \param met pointer toward the sol structure.
@@ -2109,6 +2177,25 @@ int MMG3D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  *
  */
   int MMG3D_saveVtuMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *filename);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param filename name of the readed file.
+ * \return 0 or -1 if fail, 1 otherwise.
+ *
+ * Save mesh data at Triangle (or equivalent to Tetgen in 3D) file format.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG3D_SAVETETGENMESH(mesh,filename,strlen0,retval)\n
+ * >     MMG5_DATA_PTR_T, INTENT(INOUT) :: mesh\n
+ * >     CHARACTER(LEN=*), INTENT(IN)   :: filename\n
+ * >     INTEGER, INTENT(IN)            :: strlen0\n
+ * >     INTEGER, INTENT(OUT)           :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int MMG3D_saveTetgenMesh(MMG5_pMesh ,const char *);
+
 /**
  * \param mesh pointer toward the mesh structure.
  * \param met pointer toward the sol structure.
@@ -2183,6 +2270,22 @@ int MMG3D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  *
  */
   int MMG3D_saveAllSols(MMG5_pMesh  mesh,MMG5_pSol *sol ,const char *filename);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param sol pointer toward an array of solution structure (that stores solution fields).
+ * \return 1
+ *
+ * Deallocation of an array of solution fields
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG3D_Free_allSols(mesh,sol,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh,sol\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+int MMG3D_Free_allSols(MMG5_pMesh mesh,MMG5_pSol *sol);
 
 /* deallocations */
 /**
@@ -2282,8 +2385,6 @@ int MMG3D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  * compatibility between the library call from a Fortran code and a C code.
  *
  * \remark No fortran interface to allow variadic arguments.
- *
- * \remark no Fortran interface to allow variadic args.
  *
  */
   int MMG3D_Free_names(const int starter,...);
@@ -2466,7 +2567,7 @@ int MMG3D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  *
  */
   int MMG3D_mmg3dcheck(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol,double critmin,
-                       double lmin, double lmax, int *eltab,char metRidTyp);
+                       double lmin, double lmax, int *eltab,int8_t metRidTyp);
 /**
  * \param mesh pointer toward the mesh structure.
  * \param met pointer toward the sol structure.
@@ -2488,7 +2589,7 @@ int MMG3D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  *
  */
   void  MMG3D_searchqua(MMG5_pMesh mesh, MMG5_pSol met, double critmin,
-                        int *eltab,char metRidTyp);
+                        int *eltab,int8_t metRidTyp);
 /**
  * \param mesh pointer toward the mesh structure.
  * \param met pointer toward the sol structure.
@@ -2516,7 +2617,7 @@ int MMG3D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  *
  */
   int  MMG3D_searchlen(MMG5_pMesh mesh, MMG5_pSol met, double lmin,
-                       double lmax,int *eltab,char  metRidTyp);
+                       double lmax,int *eltab,int8_t  metRidTyp);
 
 /** Utils */
 /**
@@ -2651,6 +2752,56 @@ int MMG3D_switch_metricStorage(MMG5_pMesh mesh, MMG5_pSol met);
 
 /**
  * \param mesh pointer toward the mesh structure.
+ * \param nb_tria pointer toward the number of non boundary triangles.
+ * \return 0 if failed, 1 otherwise.
+ *
+ * Get the number of non boundary triangles (for DG methods for example).
+ * A triangle is
+ * boundary if it is located at the interface of 2 domains with different
+ * references or if it belongs to one tetra only.
+ * Append these triangles to the list of triangles.
+ *
+ * \warning reallocate the triangle array and append the internal triangles.
+ * This may modify the behaviour of other functions.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG3D_GET_NUMBEROFNONBDYTRIANGLESS(mesh,nb_tria,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh\n
+ * >     INTEGER, INTENT(OUT)          :: nb_tria\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int MMG3D_Get_numberOfNonBdyTriangles(MMG5_pMesh mesh, int* nb_tria);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param v0 pointer toward the firts vertex of the triangle
+ * \param v1 pointer toward the second vertex of the triangle.
+ * \param v2 pointer toward the third vertex of the triangle.
+ * \param ref pointer toward the triangle reference.
+ * \param idx index of the non boundary triangle to get (between 1 and nb_tria)
+ * \return 0 if failed, 1 otherwise.
+ *
+ * Get vertices and reference \a ref of the idx^th non boundary
+ * triangle (for DG methods for example). A tria is boundary if it is located at
+ * the interface of 2 domains witch different references or if it belongs to one
+ * tetra only.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG3D_GET_NONBDYTRIANGLE(mesh,v0,v1,v2,ref,idx,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh\n
+ * >     INTEGER, INTENT(OUT)          :: v0,v1,v2\n
+ * >     INTEGER                       :: ref\n
+ * >     INTEGER, INTENT(IN)           :: idx\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int MMG3D_Get_nonBdyTriangle(MMG5_pMesh mesh, int* v0, int* v1, int* v2, int* ref, int idx);
+
+/**
+ * \param mesh pointer toward the mesh structure.
  * \param ktri index of the boundary triangle.
  * \param ktet pointer toward an integer that will contains the tetra index.
  * \param iface pointer toward the triangle in \a ktet.
@@ -2725,7 +2876,19 @@ int MMG3D_switch_metricStorage(MMG5_pMesh mesh, MMG5_pSol met);
  */
   int MMG3D_Compute_eigenv(double m[6],double lambda[3],double vp[3][3]);
 
-
+/**
+ * \param mesh pointer toward the mesh structure
+ * \param sol pointer toward the solution structure
+ *
+ * Free the solution.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG3D_FREE_SOLUTIONS(mesh,sol)\n
+ * >     MMG5_DATA_PTR_T, INTENT(INOUT) :: mesh,sol\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  void MMG3D_Free_solutions(MMG5_pMesh mesh,MMG5_pSol sol);
 
 #ifdef __cplusplus
 }

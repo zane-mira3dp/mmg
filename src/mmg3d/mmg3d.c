@@ -39,7 +39,7 @@ mytime         MMG5_ctim[TIMEMAX];
 /**
  * Print elapsed time at end of process.
  */
-static void MMG5_endcod() {
+static void MMG5_endcod(void) {
   char   stim[32];
 
   chrono(OFF,&MMG5_ctim[0]);
@@ -131,7 +131,7 @@ static inline
 int MMG3D_writeLocalParam( MMG5_pMesh mesh ) {
   MMG5_iNode  *triRefs,*tetRefs;
   int          nparTri,nparTet;
-  char         *ptr,data[128];
+  char         *ptr,data[MMG5_FILESTR_LGTH];
   FILE         *out;
 
   /** Save the local parameters file */
@@ -249,7 +249,8 @@ int MMG3D_defaultOption(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
   MMG3D_setfunc(mesh,met);
 
   if ( mesh->info.imprim > 0 ) {
-    fprintf(stdout,"\n  %s\n   MODULE MMG3D: IMB-LJLL : %s (%s)\n  %s\n",MG_STR,MG_VER,MG_REL,MG_STR);
+    fprintf(stdout,"\n  %s\n   MODULE MMG3D: IMB-LJLL : %s (%s)\n  %s\n",
+            MG_STR,MMG_VERSION_RELEASE,MMG_RELEASE_DATE,MG_STR);
     fprintf(stdout,"\n  -- DEFAULT PARAMETERS COMPUTATION\n");
   }
 
@@ -304,8 +305,8 @@ int main(int argc,char *argv[]) {
   int             ier,ierSave,fmtin,fmtout;
   char            stim[32],*ptr;
 
-  fprintf(stdout,"  -- MMG3D, Release %s (%s) \n",MG_VER,MG_REL);
-  fprintf(stdout,"     %s\n",MG_CPY);
+  fprintf(stdout,"  -- MMG3D, Release %s (%s) \n",MMG_VERSION_RELEASE,MMG_RELEASE_DATE);
+  fprintf(stdout,"     %s\n",MMG_COPYRIGHT);
   fprintf(stdout,"     %s %s\n",__DATE__,__TIME__);
 
   MMG3D_Set_commonFunc();
@@ -315,7 +316,6 @@ int main(int argc,char *argv[]) {
 
   tminit(MMG5_ctim,TIMEMAX);
   chrono(ON,&MMG5_ctim[0]);
-
 
   /* assign default values */
   mesh = NULL;
@@ -396,21 +396,21 @@ int main(int argc,char *argv[]) {
       if ( MMG3D_loadSol(mesh,sol,sol->namein) < 1 ) {
         fprintf(stdout,"  ## ERROR: UNABLE TO LOAD SOLUTION FILE.\n");
         MMG5_RETURN_AND_FREE(mesh,met,ls,disp,MMG5_STRONGFAILURE);
+      }
     }
-  }
-  else {
+    else {
       /* Facultative metric */
       if ( MMG3D_loadSol(mesh,met,met->namein) == -1 ) {
         fprintf(stderr,"\n  ## ERROR: WRONG DATA TYPE OR WRONG SOLUTION NUMBER.\n");
         MMG5_RETURN_AND_FREE(mesh,met,ls,disp,MMG5_STRONGFAILURE);
       }
-      }
+    }
     /* In iso mode: read metric if any */
     if ( mesh->info.iso && met->namein ) {
       if ( MMG3D_loadSol(mesh,met,met->namein) < 1 ) {
         fprintf(stdout,"  ## ERROR: UNABLE TO LOAD METRIC.\n");
         MMG5_RETURN_AND_FREE(mesh,met,ls,disp,MMG5_STRONGFAILURE);
-    }
+      }
     }
     break;
 
@@ -490,6 +490,17 @@ int main(int argc,char *argv[]) {
     case ( MMG5_FMT_VtkVtk ):
       ierSave = MMG3D_saveVtkMesh(mesh,met,mesh->nameout);
       break;
+    case ( MMG5_FMT_Tetgen ):
+      ierSave = MMG3D_saveTetgenMesh(mesh,mesh->nameout);
+      /* This format dont allow to save a solution: use a .sol file */
+      if ( !ierSave ) {
+        MMG5_RETURN_AND_FREE(mesh,met,ls,disp,MMG5_STRONGFAILURE);
+      }
+      if ( met && met->np ) {
+        ierSave = MMG3D_saveSol(mesh,met,met->nameout);
+      }
+      break;
+
     default:
       ierSave = MMG3D_saveMesh(mesh,mesh->nameout);
       if ( !ierSave ) {

@@ -34,7 +34,7 @@
  */
 
 #include "inlined_functions_3d.h"
-#include "mmg3dexterns.c"
+#include "mmg3dexterns.h"
 
 int MMG3D_chk4ridVertices(MMG5_pMesh mesh, MMG5_pTetra pt) {
   MMG5_pPoint  ppt;
@@ -124,8 +124,8 @@ static int MMG5_defmetsin(MMG5_pMesh mesh,MMG5_pSol met,int kel, int iface, int 
   double             c[3],kappa,maxkappa,alpha, hausd,hausd_v;
   int                lists[MMG3D_LMAX+2],listv[MMG3D_LMAX+2],ilist,ilists,ilistv;
   int                k,iel,idp,ifac,isloc,init_s;
-  unsigned char      i,i0,i1,i2;
-  static char        mmgWarn = 0;
+  uint8_t            i,i0,i1,i2;
+  static int8_t      mmgWarn = 0;
 
   pt  = &mesh->tetra[kel];
   idp = pt->v[ip];
@@ -328,7 +328,7 @@ static int MMG5_defmetrid(MMG5_pMesh mesh,MMG5_pSol met,int kel,
   double         r[3][3],lispoi[3*MMG3D_LMAX+1];
   double         detg,detd;
   int            i,i0,i1,i2,ifac,isloc;
-  static char    mmgWarn = 0;
+  static int8_t  mmgWarn = 0;
 
   pt  = &mesh->tetra[kel];
   idp = pt->v[ip];
@@ -539,8 +539,8 @@ static int MMG5_defmetref(MMG5_pMesh mesh,MMG5_pSol met,int kel, int iface, int 
   double        *m,isqhmin,isqhmax,*n,r[3][3],lispoi[3*MMG3D_LMAX+1];
   double        ux,uy,uz,det2d,c[3];
   double        tAA[6],tAb[3], hausd;
-  unsigned char i1,i2,itri1,itri2,i;
-  static char   mmgWarn0=0,mmgWarn1=0;
+  uint8_t       i1,i2,itri1,itri2,i;
+  static int8_t mmgWarn0=0,mmgWarn1=0;
 
   ipref[0] = ipref[1] = 0;
   pt  = &mesh->tetra[kel];
@@ -805,8 +805,8 @@ static int MMG5_defmetreg(MMG5_pMesh mesh,MMG5_pSol met,int kel,int iface, int i
   double         *n,*m,r[3][3],ux,uy,uz,lispoi[3*MMG3D_LMAX+1];
   double         det2d,c[3],isqhmin,isqhmax;
   double         tAA[6],tAb[3],hausd;
-  unsigned char  i1,i;
-  static char    mmgWarn = 0;
+  uint8_t        i1,i;
+  static int8_t  mmgWarn = 0;
 
   pt  = &mesh->tetra[kel];
   idp = pt->v[ip];
@@ -1022,7 +1022,7 @@ int MMG5_defmetvol(MMG5_pMesh mesh,MMG5_pSol met,int8_t ismet) {
   MMG5_pPar     par;
   double        v[3][3],lambda[3],isqhmax,isqhmin,*m;
   int           list[MMG3D_LMAX+2],ilist,k,l,i,j,isloc,ip;
-  static char   mmgWarn = 0;
+  static int8_t mmgWarn = 0;
 
   isqhmin = 1./(mesh->info.hmin*mesh->info.hmin);
   isqhmax = 1./(mesh->info.hmax*mesh->info.hmax);
@@ -1258,8 +1258,8 @@ int MMG3D_defsiz_ani(MMG5_pMesh mesh,MMG5_pSol met) {
   double        mm[6];
   int           k,l,iploc;
   int8_t        ismet;
-  char          i;
-  static char   mmgErr = 0;
+  int8_t        i;
+  static int8_t mmgErr = 0;
 
   if ( !MMG5_defsiz_startingMessage (mesh,met,__func__) ) {
     return 0;
@@ -1282,7 +1282,7 @@ int MMG3D_defsiz_ani(MMG5_pMesh mesh,MMG5_pSol met) {
     MMG5_caltet         = MMG5_caltet_ani;
     MMG5_caltri         = MMG5_caltri_ani;
     MMG5_lenedg         = MMG5_lenedg_ani;
-    MMG3D_lenedgCoor     = MMG5_lenedgCoor_ani;
+    MMG3D_lenedgCoor    = MMG5_lenedgCoor_ani;
     MMG5_lenSurfEdg     = MMG5_lenSurfEdg_ani;
   }
   else {
@@ -1351,6 +1351,8 @@ int MMG3D_defsiz_ani(MMG5_pMesh mesh,MMG5_pSol met) {
       }
     }
   }
+  /* Now the metric storage at ridges is the "mmg" one. */
+  mesh->info.metRidTyp = 1;
 
   /* search for unintialized metric */
   MMG5_defUninitSize(mesh,met,ismet);
@@ -1378,8 +1380,8 @@ int MMG5_grad2metVol(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pTetra pt,int np1,int np
   double         c[5],l,val,t[3],rbasis1[3][3],rbasis2[3][3];
   double         lambda[3],vp[3][3],alpha,beta,mu[3];
   int            kmin,i;
-  char           ichg;
-  static char    mmgWarn = 0;
+  int8_t         ichg;
+  static int8_t  mmgWarn = 0;
 
   p1  = &mesh->point[np1];
   p2  = &mesh->point[np2];
@@ -1606,9 +1608,9 @@ static inline
 int MMG3D_simred(MMG5_pMesh mesh,double *m,double *n,double dm[3],
                  double dn[3],double vp[3][3] ) {
 
-  double       lambda[3],im[6],imn[9];
-  int          order;
-  static char  mmgWarn0=0;
+  double        lambda[3],im[6],imn[9];
+  int           order;
+  static int8_t mmgWarn0=0;
 
   /* Compute imn = M^{-1}N */
   if ( !MMG5_invmat ( m,im ) ) {
@@ -1808,21 +1810,34 @@ int MMG5_grad2metVolreq(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pTetra pt,int npmaste
      * of the singular points. Thus:
      * lambda_new = = 0.5 lambda_1 + 0.5 lambda_new = lambda_1 + 0.5 beta.
      * with beta the smallest variation of the eigenvalues (lambda_new-lambda_1). */
-    assert ( fabs(mm2[0]-mm2[3]) < MMG5_EPSOK && fabs(mm2[3]-mm2[5]) < MMG5_EPSOK
-             && "iso metric?" );
 
-    beta = mu[0] - mm2[0];
+    /* This point can have an anisotropic metric if a user-provided metric is
+     * found. So, compute the eigenvalues. */
+    double ll[3],rr[3][3],llmin;
+    int i;
+    if( !MMG5_eigenv(1,mm2,ll, rr) )
+      return 0;
+    llmin = DBL_MAX;
+    for( i = 0; i < 3; i++ )
+      if( ll[i] < llmin )
+        llmin = ll[i];
 
-    if ( fabs(beta) < fabs(mm2[0]-mu[1]) ) {
-      beta = mu[1] - mm2[0];
+
+    beta = mu[0] - llmin;
+
+    if ( fabs(beta) < fabs(llmin-mu[1]) ) {
+      beta = mu[1] - llmin;
     }
-    if ( fabs(beta) < fabs(mm2[0]-mu[2]) ) {
-      beta = mu[2] - mm2[0];
-    }
-
-    mm2[0] += 0.5*beta;
-    mm2[3] += 0.5*beta;
-    mm2[5] += 0.5*beta;
+    ll[0] += 0.5*beta;
+    ll[1] += 0.5*beta;
+    ll[2] += 0.5*beta;
+    assert ( ll[0]>0. && ll[1]>0. && ll[2]>0. );
+    mm2[0] = ll[0]*rr[0][0]*rr[0][0] + ll[1]*rr[1][0]*rr[1][0] + ll[2]*rr[2][0]*rr[2][0];
+    mm2[1] = ll[0]*rr[0][0]*rr[0][1] + ll[1]*rr[1][0]*rr[1][1] + ll[2]*rr[2][0]*rr[2][1];
+    mm2[2] = ll[0]*rr[0][0]*rr[0][2] + ll[1]*rr[1][0]*rr[1][2] + ll[2]*rr[2][0]*rr[2][2];
+    mm2[3] = ll[0]*rr[0][1]*rr[0][1] + ll[1]*rr[1][1]*rr[1][1] + ll[2]*rr[2][1]*rr[2][1];
+    mm2[4] = ll[0]*rr[0][1]*rr[0][2] + ll[1]*rr[1][1]*rr[1][2] + ll[2]*rr[2][1]*rr[2][2];
+    mm2[5] = ll[0]*rr[0][2]*rr[0][2] + ll[1]*rr[1][2]*rr[1][2] + ll[2]*rr[2][2]*rr[2][2];
   }
   else if( p2->tag & MG_GEO ){
 

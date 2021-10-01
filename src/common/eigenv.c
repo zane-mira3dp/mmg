@@ -38,7 +38,7 @@
 #include <math.h>
 #include <assert.h>
 #include <stdlib.h>
-
+#include <stdint.h>
 #include "eigenv.h"
 
 /* seeking at least 1.e-05 accuracy, more if not sufficient */
@@ -87,7 +87,7 @@ static int newton3(double p[4],double x[3]) {
   double      delta,fx,dfx,dxx;
   double      fdx0,fdx1,dx0,dx1,x1,x2,tmp,epsA,epsB;
   int         it,it2,n;
-  static char mmgWarn=0;
+  static int8_t mmgWarn=0;
 
   /* coeffs polynomial, a=1 */
   if ( p[3] != 1. ) {
@@ -311,7 +311,7 @@ int MMG5_check_accuracy(double mat[6],double lambda[3], double v[3][3],
                         double w1[3], double w2[3], double w3[3],
                         double maxm, int order, int symmat) {
   double  err,tmpx,tmpy,tmpz;
-  float   m[6];
+  double  m[6];
   int     i,j,k;
 
   if ( !symmat ) return 1;
@@ -389,6 +389,9 @@ int MMG5_eigenv(int symmat,double *mat,double lambda[3],double v[3][3]) {
 
   epsd = MG_EIGENV_EPS13;
 
+  w1[0] = w1[1] = w1[2] = 0;
+  w2[0] = w2[1] = w2[2] = 0;
+  w3[0] = w3[1] = w3[2] = 0;
   /* default */
   memcpy(v,Id,9*sizeof(double));
   if ( symmat ) {
@@ -829,6 +832,8 @@ inline int MMG5_eigensym(double m[3],double lambda[2],double vp[2][2]) {
     vp[1][1] = 1.0;
     return 2;
   }
+  /* Remark: the computation of an independent basis of eigenvectors fail if the
+   * matrix is diagonal (we find twice the same eigenvector) */
   vp[0][0] = a12;
   vp[0][1] = (lambda[0] - a11);
   vnorm = sqrt(vp[0][0]*vp[0][0] + vp[0][1]*vp[0][1]);
@@ -852,6 +857,10 @@ inline int MMG5_eigensym(double m[3],double lambda[2],double vp[2][2]) {
 
   lambda[0] *= maxm;
   lambda[1] *= maxm;
+
+  /* Check orthogonality of eigenvectors. If they are not, we probably miss the
+   * dectection of a diagonal matrix. */
+  assert ( fabs(vp[0][0]*vp[1][0] + vp[0][1]*vp[1][1]) <= MG_EIGENV_EPS6 );
 
   return 1;
 }

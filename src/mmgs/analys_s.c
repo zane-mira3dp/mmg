@@ -48,7 +48,7 @@ static int setadj(MMG5_pMesh mesh){
   int          *adja,*adjb,adji1,adji2,*pile,iad,ipil,ip1,ip2,gen;
   int          k,kk,iel,jel,nvf,nf,nr,nt,nre,nreq,ncc,ned,ref;
   int16_t      tag;
-  char         i,ii,i1,i2,ii1,ii2,voy;
+  int8_t       i,ii,i1,i2,ii1,ii2,voy;
 
   if ( abs(mesh->info.imprim) > 5  || mesh->info.ddebug )
     fprintf(stdout,"  ** SETTING TOPOLOGY\n");
@@ -124,13 +124,16 @@ static int setadj(MMG5_pMesh mesh){
           mesh->point[ip2].tag |= MG_REF;
         }
 
+        /* Do not treat adjacent through a non-manifold edge */
+        if ( pt1->tag[ii] & MG_NOM ) {
+          continue;
+        }
+
         /* store adjacent */
         if ( !pt1->flag ) {
           pt1->flag    = 1;
-          if ( !(pt1->tag[ii] & MG_NOM) ) {
             pile[++ipil] = kk;
           }
-        }
 
         /* check orientation */
         ii1 = MMG5_inxt2[ii];
@@ -139,11 +142,13 @@ static int setadj(MMG5_pMesh mesh){
           /* Moebius strip */
           if ( pt1->base < 0 ) {
             pt1->ref      = -abs(pt1->ref);
-            pt->tag[i]   |= MG_REF;
-            pt1->tag[ii] |= MG_REF;
+            /* Add MG_NOM flag because it allows neighbours to have non
+             * consistent orientations */
+            pt->tag[i]   |= MG_REF + MG_NOM;
+            pt1->tag[ii] |= MG_REF + MG_NOM;
           }
           /* flip orientation */
-          else if ( !(pt->tag[i] & MG_NOM) ) {
+          else {
             pt1->base   = -pt1->base;
             pt1->v[ii1] = ip2;
             pt1->v[ii2] = ip1;
@@ -177,6 +182,11 @@ static int setadj(MMG5_pMesh mesh){
             }
             nf++;
           }
+        }
+        else {
+          /* Mark triangles that have a consistent orientation with their
+           * neighbours */
+          pt1->base =  -pt1->base;
         }
       }
     }
@@ -236,7 +246,7 @@ static void nmpoints(MMG5_pMesh mesh) {
   MMG5_pTria      pt;
   MMG5_pPoint     p0;
   int        k,np,numt,iel,jel,nmp,*adja;
-  char       i0,i1,i,jp;
+  int8_t     i0,i1,i,jp;
   
   nmp = 0;
   /* Initialize point flags */
@@ -327,7 +337,7 @@ static void nmpoints(MMG5_pMesh mesh) {
 /*   MMG5_pPoint   p[3]; */
 /*   double   s,kal,declic,ux,uy,uz,vx,vy,vz; */
 /*   int     *adja,k,iel,nd,ndd,it; */
-/*   char     i,ia,i1,i2,j,typ; */
+/*   int8_t   i,ia,i1,i2,j,typ; */
 
 /*   it = ndd = 0; */
 /*   declic = MMGS_BADKAL / MMGS_ALPHAD; */
@@ -418,7 +428,7 @@ static int setdhd(MMG5_pMesh mesh) {
   MMG5_pTria    pt,pt1;
   double   n1[3],n2[3],dhd;
   int     *adja,k,kk,nr;
-  char     i,ii,i1,i2;
+  int8_t   i,ii,i1,i2;
 
   nr = 0;
   for (k=1; k<=mesh->nt; k++) {
@@ -463,7 +473,7 @@ static int MMG5_singul(MMG5_pMesh mesh) {
   MMG5_pPoint    ppt,p1,p2;
   double         ux,uy,uz,vx,vy,vz,dd;
   int            list[MMGS_LMAX+2],listref[MMGS_LMAX+2],k,nc,xp,nr,ns,nre;
-  char           i;
+  int8_t         i;
 
   nre = nc = 0;
   for (k=1; k<=mesh->nt; k++) {
@@ -554,7 +564,7 @@ static int norver(MMG5_pMesh mesh) {
   MMG5_pxPoint   go;
   double         n[3],dd;
   int            *adja,k,kk,ier,xp,nn,nt,nf,nnr;
-  char           i,ii,i1;
+  int8_t         i,ii,i1;
 
   if ( abs(mesh->info.imprim) > 4 || mesh->info.ddebug )
     fprintf(stdout,"  ** DEFINING GEOMETRY\n");

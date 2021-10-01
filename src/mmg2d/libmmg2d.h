@@ -62,15 +62,17 @@ extern "C" {
     MMG2D_IPARAM_iso,               /*!< [1/0], Level-set meshing */
     MMG2D_IPARAM_opnbdy,            /*!< [1/0], Preserve edges at interface of 2 domains with same reference */
     MMG2D_IPARAM_lag,               /*!< [-1/0/1/2], Lagrangian option */
-    MMG2D_IPARAM_msh,               /*!< [0/1/2], Read/write to gmsh visu if val=1 (out) if val=2 (in/out) */
-    MMG2D_IPARAM_numsubdomain,       /*!<only if no given triangle, save the subdomain nb (0==all subdomain) */
+    MMG2D_IPARAM_3dMedit,           /*!< [0/1/2], Read/write 2D mesh in 3D (Medit only). out if val=1 in/out if val=2 */
     MMG2D_IPARAM_optim,             /*!< [1/0], Optimize mesh keeping its initial edge sizes */
     MMG2D_IPARAM_noinsert,          /*!< [1/0], Avoid/allow point insertion */
     MMG2D_IPARAM_noswap,            /*!< [1/0], Avoid/allow edge or face flipping */
     MMG2D_IPARAM_nomove,            /*!< [1/0], Avoid/allow point relocation */
     MMG2D_IPARAM_nosurf,            /*!< [1/0], Avoid/allow surface modifications */
     MMG2D_IPARAM_nreg,              /*!< [0/1], Enable normal regularization */
+    MMG2D_IPARAM_numsubdomain,      /*!< [0/n], Save the subdomain nb (0==all subdomain) */
     MMG2D_IPARAM_numberOfLocalParam,/*!< [n], Number of local parameters */
+    MMG2D_IPARAM_numberOfMat,       /*!< [n], Number of material in ls mode */
+    MMG2D_IPARAM_anisosize,                 /*!< [1/0], Turn on/off anisotropic metric creation when no metric is provided */
     MMG2D_IPARAM_nosizreq,          /*!< [0/1], Allow/avoid overwritten of sizes at required points (advanced usage) */
     MMG2D_DPARAM_angleDetection,    /*!< [val], Value for angle detection */
     MMG2D_DPARAM_hmin,              /*!< [val], Minimal mesh size */
@@ -81,6 +83,7 @@ extern "C" {
     MMG2D_DPARAM_hgradreq,          /*!< [val], Control gradation on required entites (advanced usage) */
     MMG2D_DPARAM_ls,                /*!< [val], Value of level-set */
     MMG2D_DPARAM_rmc,               /*!< [-1/val], Remove small connex componants in level-set mode */
+    MMG2D_IPARAM_nofem,             /*!< [1/0], Generate a non finite element mesh */
   };
 
 /*----------------------------- functions header -----------------------------*/
@@ -274,6 +277,28 @@ extern "C" {
  */
   int  MMG2D_Set_localParameter(MMG5_pMesh mesh, MMG5_pSol sol, int typ,
                                 int ref,double hmin,double hmax,double hausd);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param sol pointer toward the sol structure.
+ * \param ref input tetra reference.
+ * \param split MMG5_MMAT_NoSplit if the entity must not be splitted, MMG5_MMAT_Split otherwise
+ * \param rin internal reference after ls discretization
+ * \param rex external reference after ls discretization
+ * \return 0 if failed, 1 otherwise.
+ *
+ * Set the reference mapping for the elements of ref \a ref in ls discretization mode.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG2D_SET_MULTIMAT(mesh,sol,ref,split,rin,rex,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh,sol\n
+ * >     INTEGER, INTENT(IN)           :: ref,split,rin,rex\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int  MMG2D_Set_multiMat(MMG5_pMesh mesh, MMG5_pSol sol,int ref,int split,
+                          int rin, int rex);
 
 /* init structure datas */
 /**
@@ -913,6 +938,30 @@ extern "C" {
                         int* isCorner, int* isRequired);
 /**
  * \param mesh pointer toward the mesh structure.
+ * \param c0 pointer toward the coordinate of the point along the first dimension.
+ * \param c1 pointer toward the coordinate of the point along the second dimension.
+ * \param ref pointer to the point reference.
+ * \param isCorner pointer toward the flag saying if point is corner.
+ * \param isRequired pointer toward the flag saying if point is required.
+ * \param idx index of point to get.
+ * \return 1.
+ *
+ * Get coordinates \a c0, \a c1 and reference \a ref of
+ * vertex \a idx of mesh.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG2D_GETBYIDX_VERTEX(mesh,c0,c1,ref,isCorner,isRequired,idx,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh\n
+ * >     REAL(KIND=8), INTENT(OUT)     :: c0,c1\n
+ * >     INTEGER                       :: ref,isCorner,isRequired,idx\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int  MMG2D_GetByIdx_vertex(MMG5_pMesh mesh, double* c0, double* c1, int* ref,
+                             int* isCorner, int* isRequired,int idx);
+/**
+ * \param mesh pointer toward the mesh structure.
  * \param vertices pointer toward the table of the points coordinates.
  * The coordinates of the \f$i^{th}\f$ point are stored in
  * vertices[(i-1)*2]\@2.
@@ -1089,6 +1138,25 @@ extern "C" {
  */
   int MMG2D_Get_edges(MMG5_pMesh mesh,int *edges,int* refs,
                       int *areRidges,int *areRequired);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param met pointer toward the metric structure.
+ * \param k index of the triangle for which we want to get the quality.
+ * \return the computed quality or 0. if fail.
+ *
+ * Get quality of tria \a k.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG2D_GET_TRIANGLEQUALITY(mesh,met,k,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh,met\n
+ * >     INTEGER, INTENT(IN)           :: k\n
+ * >     REAL(KIND=8), INTENT(OUT)     :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  double MMG2D_Get_triangleQuality(MMG5_pMesh mesh,MMG5_pSol met, int k);
+
 /**
  * \param met pointer toward the sol structure.
  * \param s pointer toward the scalar solution value.
@@ -1252,6 +1320,22 @@ extern "C" {
  *
  */
   int MMG2D_Chk_meshData(MMG5_pMesh mesh,MMG5_pSol met);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param sol pointer toward an array of solution structure (that stores solution fields).
+ * \return 1
+ *
+ * Deallocation of an array of solution fields
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG2D_Free_allSols(mesh,sol,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh,sol\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+int MMG2D_Free_allSols(MMG5_pMesh mesh,MMG5_pSol *sol);
 
 /* deallocations */
 /**
@@ -1736,6 +1820,26 @@ int MMG2D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  *
  */
   int MMG2D_saveVtpMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *filename);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param filename name of the readed file.
+ * \return 0 or -1 if fail, 1 otherwise.
+ *
+ * Save mesh data at Triangle (or equivalent to Tetgen in 2D) file format.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG2D_SAVETETGENMESH(mesh,filename,strlen0,retval)\n
+ * >     MMG5_DATA_PTR_T, INTENT(INOUT) :: mesh\n
+ * >     CHARACTER(LEN=*), INTENT(IN)   :: filename\n
+ * >     INTEGER, INTENT(IN)            :: strlen0\n
+ * >     INTEGER, INTENT(OUT)           :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int MMG2D_saveTetgenMesh(MMG5_pMesh ,const char *);
+
+
 /**
  * \param mesh pointer toward the mesh structure.
  * \param sol pointer toward the solution structure..
@@ -1856,6 +1960,21 @@ int MMG2D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
 // void (*MMG2D_callbackinsert) (int ,int ,int ,int, int);
 
 /**
+ * \param mesh pointer toward the mesh structure.
+ * \return 0 if fail, 1 if success.
+ *
+ * Print the default parameters values.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMG2D_DEFAULTVALUES(mesh,retval)\n
+ * >     MMG5_DATA_PTR_T, INTENT(INOUT) :: mesh\n
+ * >     INTEGER, INTENT(OUT)           :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int MMG2D_defaultValues(MMG5_pMesh mesh);
+
+/**
  * \param mesh pointer toward the mesh structure
  * \param met pointer toward the sol structure
  * \return 1 if success
@@ -1909,9 +2028,13 @@ int MMG2D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  * \return 0 if failed, 1 otherwise.
  *
  * Get the number of non boundary edges (for DG methods for example). An edge is
- * boundary if it is located at the interface of 2 domains witch different
+ * boundary if it is located at the interface of 2 domains with different
  * references, if it belongs to one triangle only or if it is a singular edge
  * (ridge or required).
+ * Append these edges to the list of edge.
+ *
+ * \warning reallocate the edge array and append the internal edges. This may
+ * modify the behaviour of other functions.
  *
  * \remark Fortran interface:
  * >   SUBROUTINE MMG2D_GET_NUMBEROFNONBDYEDGES(mesh,nb_edges,retval)\n
@@ -1931,9 +2054,9 @@ int MMG2D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  * \param idx index of the non boundary edge to get (between 1 and nb_edges)
  * \return 0 if failed, 1 otherwise.
  *
- * Get extremities \a e0, \a e1 and reference \a ref of hte idx^th non boundary
+ * Get extremities \a e0, \a e1 and reference \a ref of the idx^th non boundary
  * edge (for DG methods for example). An edge is boundary if it is located at
- * the interface of 2 domains witch different references, if it belongs to one
+ * the interface of 2 domains with different references, if it belongs to one
  * triangle only or if it is a singular edge (ridge or required).
  *
  * \remark Fortran interface:
@@ -1947,7 +2070,6 @@ int MMG2D_loadVtkMesh_and_allData(MMG5_pMesh mesh,MMG5_pSol *sol,const char *fil
  *
  */
   int MMG2D_Get_nonBdyEdge(MMG5_pMesh mesh, int* e0, int* e1, int* ref, int idx);
-
 
 /**
  * \brief Return adjacent elements of a triangle.

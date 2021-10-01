@@ -222,6 +222,18 @@ FORTRAN_NAME(MMGS_GET_VERTEX,mmgs_get_vertex,
   *retval = MMGS_Get_vertex(*mesh,c0,c1,c2,ref,isCorner,isRequired);
   return;
 }
+
+/**
+ * See \ref MMGS_GetByIdx_vertex function in \ref mmgs/libmmgs.h file.
+ */
+FORTRAN_NAME(MMGS_GETBYIDX_VERTEX,mmgs_getbyidx_vertex,
+             (MMG5_pMesh *mesh, double* c0, double* c1, double* c2, int* ref,
+              int* isCorner, int* isRequired, int* idx,int* retval),
+             (mesh,c0,c1,c2,ref,isCorner,isRequired,idx, retval)) {
+  *retval = MMGS_GetByIdx_vertex(*mesh,c0,c1,c2,ref,isCorner,isRequired,*idx);
+  return;
+}
+
 /**
  * See \ref MMGS_Set_vertices function in \ref mmgs/libmmgs.h file.
  */
@@ -443,6 +455,17 @@ FORTRAN_NAME(MMGS_GET_NORMALATVERTEX,mmgs_get_normalatvertex,
 }
 
 /**
+ * See \ref MMGS_Get_triangleQuality function in \ref mmgs/libmmgs.h file.
+ */
+FORTRAN_NAME(MMGS_GET_TRIANGLEQUALITY,mmgs_get_trianglequality,
+             (MMG5_pMesh *mesh, MMG5_pSol *met, int* k, double* retval),
+             (mesh,met,k,retval)) {
+  *retval = MMGS_Get_triangleQuality(*mesh,*met,*k);
+  return;
+}
+
+
+/**
  * See \ref MMGS_Set_scalarSol function in \ref mmgs/libmmgs.h file.
  */
 FORTRAN_NAME(MMGS_SET_SCALARSOL,mmgs_set_scalarsol,
@@ -648,6 +671,19 @@ FORTRAN_NAME(MMGS_SET_LOCALPARAMETER,mmgs_set_localparameter,
   *retval = MMGS_Set_localParameter(*mesh,*sol,*typ,*ref,*hmin,*hmax,*hausd);
   return;
 }
+
+/**
+ * See \ref MMGS_Free_allSols function in \ref mmgs/libmmgs.h file.
+ */
+FORTRAN_NAME(MMGS_FREE_ALLSOLS,mmgs_free_allsols,
+             (MMG5_pMesh *mesh,MMG5_pSol *sol,int* retval),
+             (mesh,sol,retval)){
+
+  *retval = MMGS_Free_allSols(*mesh,sol);
+
+  return;
+}
+
 
 /**
  * See \ref MMGS_Free_all function in \ref mmgs/libmmgs.h file.

@@ -105,35 +105,36 @@ ENDIF ( )
 #####         Compile mmg2d libraries
 #####
 ############################################################################
-# Compile static library
-IF ( LIBMMG2D_STATIC )
-  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}2d_a STATIC
-    "${mmg2d_library_files}" ${PROJECT_NAME}2d )
-ENDIF()
-
-# Compile shared library
-IF ( LIBMMG2D_SHARED )
-  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}2d_so SHARED
-    "${mmg2d_library_files}" ${PROJECT_NAME}2d )
-ENDIF()
-
 # mmg2d header files needed for library
 SET( mmg2d_headers
   ${MMG2D_SOURCE_DIR}/libmmg2d.h
   ${MMG2D_BINARY_DIR}/libmmg2df.h
   ${COMMON_SOURCE_DIR}/libmmgtypes.h
   ${COMMON_BINARY_DIR}/libmmgtypesf.h
+  ${COMMON_BINARY_DIR}/mmgcmakedefines.h
+  ${COMMON_BINARY_DIR}/mmgversion.h
   )
+IF (NOT WIN32 OR MINGW)
+  LIST(APPEND mmg2d_headers  ${COMMON_BINARY_DIR}/git_log_mmg.h )
+ENDIF()
 
 # Install header files in /usr/local or equivalent
 INSTALL(FILES ${mmg2d_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mmg/mmg2d COMPONENT headers )
 
-COPY_FORTRAN_HEADER_AND_CREATE_TARGET ( ${MMG2D_BINARY_DIR} ${MMG2D_INCLUDE} 2d )
+# Copy header files in project directory at build step
+COPY_HEADERS_AND_CREATE_TARGET ( ${MMG2D_SOURCE_DIR} ${MMG2D_BINARY_DIR} ${MMG2D_INCLUDE} 2d )
 
-# Copy header files in project directory at configuration step
-# (generated file don't exists yet or are outdated)
-FILE(INSTALL  ${mmg2d_headers} DESTINATION ${MMG2D_INCLUDE}
-  PATTERN "libmmg*f.h"  EXCLUDE)
+# Compile static library
+IF ( LIBMMG2D_STATIC )
+  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}2d_a STATIC copy_2d_headers
+    "${mmg2d_library_files}" ${PROJECT_NAME}2d )
+ENDIF()
+
+# Compile shared library
+IF ( LIBMMG2D_SHARED )
+  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}2d_so SHARED copy_2d_headers
+    "${mmg2d_library_files}" ${PROJECT_NAME}2d )
+ENDIF()
 
 ############################################################################
 #####
@@ -152,7 +153,7 @@ ENDIF ( )
 #####
 ###############################################################################
 
-ADD_AND_INSTALL_EXECUTABLE ( ${PROJECT_NAME}2d
+ADD_AND_INSTALL_EXECUTABLE ( ${PROJECT_NAME}2d copy_2d_headers
   "${mmg2d_library_files}" ${mmg2d_main_file} )
 
 ###############################################################################
@@ -172,45 +173,47 @@ IF ( BUILD_TESTING )
   # Add runtime that we want to test for mmg2d
   IF ( MMG2D_CI )
 
-    SET ( CTEST_OUTPUT_DIR ${PROJECT_BINARY_DIR}/TEST_OUTPUTS )
-    FILE ( MAKE_DIRECTORY  ${CTEST_OUTPUT_DIR} )
-
     ADD_EXEC_TO_CI_TESTS ( ${PROJECT_NAME}2d EXECUT_MMG2D )
 
     IF ( TEST_LIBMMG2D )
-      SET(LIBMMG2D_EXEC0_a ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_example0_a )
-
-      SET(LIBMMG2D_EXEC0_b ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_example0_b )
-      SET(LIBMMG2D_EXEC1 ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_example1 )
-      SET(LIBMMG2D_EXEC2 ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_example2 )
-      SET(LIBMMG2D_EXEC3 ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_example3 )
+      SET(LIBMMG2D_ADP0_a ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_adp_example0_a )
+      SET(LIBMMG2D_ADP0_b ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_adp_example0_b )
+      SET(LIBMMG2D_ADP1 ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_adp_example1 )
+      SET(LIBMMG2D_ADP2 ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_adp_example2 )
+      SET(LIBMMG2D_GENE0 ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_gene_example0 )
+      SET(LIBMMG2D_LS0 ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_ls_example0 )
       SET(LIBMMG2D_LSONLY ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_lsOnly )
       SET(LIBMMG2D_LSANDMETRIC ${EXECUTABLE_OUTPUT_PATH}/libmmg2d_lsAndMetric )
       SET(TEST_API2D_EXEC0 ${EXECUTABLE_OUTPUT_PATH}/test_api2d_0)
 
 
-      ADD_TEST(NAME libmmg2d_example0_a   COMMAND ${LIBMMG2D_EXEC0_a}
+      ADD_TEST(NAME libmmg2d_adp_example0_a   COMMAND ${LIBMMG2D_ADP0_a}
         "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/adaptation_example0/example0_a/init.mesh"
         "${CTEST_OUTPUT_DIR}/libmmg2d_Adaptation_0_a-init.o"
         )
-      ADD_TEST(NAME libmmg2d_example0_b   COMMAND ${LIBMMG2D_EXEC0_b}
+      ADD_TEST(NAME libmmg2d_adp_example0_b   COMMAND ${LIBMMG2D_ADP0_b}
         "${CTEST_OUTPUT_DIR}/libmmg2d_Adaptation_0_b.o.mesh"
         )
-      ADD_TEST(NAME libmmg2d_example1   COMMAND ${LIBMMG2D_EXEC1}
+      ADD_TEST(NAME libmmg2d_adp_example1   COMMAND ${LIBMMG2D_ADP1}
         "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/adaptation_example1/dom.mesh"
         "${CTEST_OUTPUT_DIR}/libmmg2d_Adaptation_1-dom.o"
         )
-      ADD_TEST(NAME libmmg2d_example2   COMMAND ${LIBMMG2D_EXEC2}
-        "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/squareGeneration_example2/carretest.mesh"
-        "${CTEST_OUTPUT_DIR}/libmmg2d_Generation_2-carre.o"
+      ADD_TEST(NAME libmmg2d_adp_example2   COMMAND ${LIBMMG2D_ADP2}
+        "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/adaptation_example1/dom.mesh"
+        "${CTEST_OUTPUT_DIR}/libmmg2d_Adaptation_2-dom.o"
+        "${CTEST_OUTPUT_DIR}/libmmg2d_Adaptation_2-dom-end.o"
         )
-      ADD_TEST(NAME libmmg2d_example3_io_0   COMMAND ${LIBMMG2D_EXEC3}
-        "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/io_multisols_example3/naca-multiSols.mesh"
-        "${CTEST_OUTPUT_DIR}/libmmg2d_io_3-naca.o" "0"
+      ADD_TEST(NAME libmmg2d_gene_example0   COMMAND ${LIBMMG2D_GENE0}
+        "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/squareGeneration_example0/carretest.mesh"
+        "${CTEST_OUTPUT_DIR}/libmmg2d_Generation_0-carre.o"
         )
-      ADD_TEST(NAME libmmg2d_example3_io_1   COMMAND ${LIBMMG2D_EXEC3}
-        "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/io_multisols_example3/naca-multiSols.mesh"
-        "${CTEST_OUTPUT_DIR}/libmmg2d_io_3-naca.o" "1"
+      ADD_TEST(NAME libmmg2d_ls0_io_0   COMMAND ${LIBMMG2D_LS0}
+        "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/io_multisols_example0/naca-multiSols.mesh"
+        "${CTEST_OUTPUT_DIR}/libmmg2d_io_0-naca.o" "0"
+        )
+      ADD_TEST(NAME libmmg2d_ls0_io_1   COMMAND ${LIBMMG2D_LS0}
+        "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/io_multisols_example0/naca-multiSols.mesh"
+        "${CTEST_OUTPUT_DIR}/libmmg2d_io_0-naca.o" "1"
         )
       ADD_TEST(NAME libmmg2d_lsOnly   COMMAND ${LIBMMG2D_LSONLY}
         "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/IsosurfDiscretization_lsOnly/multi-mat.mesh"
@@ -246,11 +249,11 @@ IF ( BUILD_TESTING )
           "${CTEST_OUTPUT_DIR}/libmmg2d_Adaptation_Fortran_0_b.o"
          )
         ADD_TEST(NAME libmmg2d_fortran_io_0   COMMAND ${LIBMMG2D_EXECFORTRAN_IO}
-          "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/io_multisols_example3/naca-multiSols.mesh"
+          "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/io_multisols_example0/naca-multiSols.mesh"
           "${CTEST_OUTPUT_DIR}/libmmg2d_Fortran_io-naca.o" "0"
          )
         ADD_TEST(NAME libmmg2d_fortran_io_1   COMMAND ${LIBMMG2D_EXECFORTRAN_IO}
-          "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/io_multisols_example3/naca-multiSols.mesh"
+          "${PROJECT_SOURCE_DIR}/libexamples/mmg2d/io_multisols_example0/naca-multiSols.mesh"
           "${CTEST_OUTPUT_DIR}/libmmg2d_Fortran_io-naca.o" "1"
           )
         ADD_TEST(NAME libmmg2d_fortran_lsOnly   COMMAND ${LIBMMG2D_EXECFORTRAN_LSONLY}

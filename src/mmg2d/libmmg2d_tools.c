@@ -57,6 +57,22 @@ void MMG2D_setfunc(MMG5_pMesh mesh,MMG5_pSol met) {
 }
 
 /**
+ * \param mesh pointer toward the mesh structure.
+ * \return 0 if fail, 1 if success.
+ *
+ * Print the default parameters values.
+ *
+ */
+int MMG2D_defaultValues(MMG5_pMesh mesh) {
+
+  MMG5_mmgDefaultValues(mesh);
+
+  fprintf(stdout,"\n\n");
+
+  return 1;
+}
+
+/**
  * \param mesh pointer toward the mesh
  * \param met pointer toward the metric
  *
@@ -66,7 +82,7 @@ void MMG2D_setfunc(MMG5_pMesh mesh,MMG5_pSol met) {
  *
  */
 int MMG2D_parsop(MMG5_pMesh mesh,MMG5_pSol met) {
-  int        ret,ref,i,j,npar;
+  int        ret,ref,i,j,npar,rin,rex,split;
   float      fp1,fp2,fp3;
   char       *ptr,data[256];
   FILE       *in;
@@ -97,32 +113,29 @@ int MMG2D_parsop(MMG5_pMesh mesh,MMG5_pSol met) {
 
     /* Read user-defined references for the LS mode */
     if ( !strcmp(data,"lsreferences") ) {
-      ret = fscanf(in,"%d",&mesh->info.nmat);
-
+      ret = fscanf(in,"%d",&npar);
       if ( !ret ) {
-        fprintf(stderr,"  %%%% Wrong format: %d\n",mesh->info.nmat);
+        fprintf(stderr,"  %%%% Wrong format for lsreferences: %d\n",npar);
         return (0);
       }
 
-      if ( mesh->info.nmat ) {
-        MMG5_ADD_MEM(mesh,(mesh->info.nmat)*sizeof(MMG5_Mat),"multi material params",return 0);
-        MMG5_SAFE_CALLOC(mesh->info.mat,mesh->info.nmat,MMG5_Mat,return 0);
-        for (i=0; i<mesh->info.nmat; i++) {
-          pm = &mesh->info.mat[i];
-          MMG_FSCANF(in,"%d",&pm->ref);
-          fgetpos(in,&position);
-          MMG_FSCANF(in,"%255s",data);
-          if ( !strcmp(data,"nosplit") ) {
-            pm->dospl = 0;
-            pm->rin = pm->ref;
-            pm->rex = pm->ref;
-          }
-          else {
-            fsetpos(in,&position);
-            MMG_FSCANF(in,"%d",&pm->rin);
-            MMG_FSCANF(in,"%d",&pm->rex);
-            pm->dospl = 1;
-          }
+      if ( !MMG2D_Set_iparameter(mesh,met,MMG2D_IPARAM_numberOfMat,npar) ) {
+        return 0;
+      }
+      for (i=0; i<mesh->info.nmat; i++) {
+        MMG_FSCANF(in,"%d",&ref);
+        fgetpos(in,&position);
+        MMG_FSCANF(in,"%255s",data);
+        split = MMG5_MMAT_NoSplit;
+        rin = rex = ref;
+        if ( strcmp(data,"nosplit") ) {
+          fsetpos(in,&position);
+          split = MMG5_MMAT_Split;
+          MMG_FSCANF(in,"%d",&rin);
+          MMG_FSCANF(in,"%d",&rex);
+        }
+        if ( !MMG2D_Set_multiMat(mesh,met,ref,split,rin,rex) ) {
+          return 0;
         }
       }
     }
@@ -131,7 +144,7 @@ int MMG2D_parsop(MMG5_pMesh mesh,MMG5_pSol met) {
       ret = fscanf(in,"%d",&npar);
 
       if ( !ret ) {
-        fprintf(stderr,"  %%%% Wrong format: %d\n",npar);
+        fprintf(stderr,"  %%%% Wrong format for parameters: %d\n",npar);
         return 0;
       }
       else if ( npar > MMG2D_LPARMAX ) {
@@ -233,11 +246,20 @@ int MMG2D_Get_numberOfNonBdyEdges(MMG5_pMesh mesh, int* nb_edges) {
     }
 
     /* Append the non boundary edges to the boundary edges array */
-    MMG5_ADD_MEM(mesh,(*nb_edges)*sizeof(MMG5_Edge),"non boundary edges",
-                  printf("  Exit program.\n");
-                  return 0);
-    MMG5_SAFE_RECALLOC(mesh->edge,(mesh->namax+1),(mesh->namax+(*nb_edges)+1),
-                       MMG5_Edge,"non bdy edges arrray",return 0);
+    if ( mesh->namax ) {
+      MMG5_ADD_MEM(mesh,(*nb_edges)*sizeof(MMG5_Edge),"non boundary edges",
+                   printf("  Exit program.\n");
+                   return 0);
+      MMG5_SAFE_RECALLOC(mesh->edge,(mesh->namax+1),(mesh->namax+(*nb_edges)+1),
+                         MMG5_Edge,"non bdy edges arrray",return 0);
+    }
+    else {
+      MMG5_ADD_MEM(mesh,((*nb_edges)+1)*sizeof(MMG5_Edge),"non boundary edges",
+                   printf("  Exit program.\n");
+                   return 0);
+      MMG5_SAFE_RECALLOC(mesh->edge,0,((*nb_edges)+1),
+                         MMG5_Edge,"non bdy edges arrray",return 0);
+    }
 
     j = mesh->namax+1;
     for ( k=1; k<=mesh->nt; k++ ) {
@@ -263,6 +285,7 @@ int MMG2D_Get_numberOfNonBdyEdges(MMG5_pMesh mesh, int* nb_edges) {
         if ( k < iel ) {
           /* Treat edge from the triangle with lowest index */
           ped = &mesh->edge[j++];
+          assert ( ped );
           ped->a   = pt->v[i1];
           ped->b   = pt->v[i2];
           ped->ref = pt->edg[i];
@@ -274,7 +297,36 @@ int MMG2D_Get_numberOfNonBdyEdges(MMG5_pMesh mesh, int* nb_edges) {
 }
 
 int MMG2D_Get_nonBdyEdge(MMG5_pMesh mesh, int* e0, int* e1, int* ref, int idx) {
-  MMG5_pEdge        ped;
+  MMG5_pEdge ped;
+  size_t     na_tot=0;
+  char       *ptr_c = (char*)mesh->edge;
+
+  if ( !mesh->edge ) {
+    fprintf(stderr,"\n  ## Error: %s: edge array is not allocated.\n"
+            " Please, call the MMG2D_Get_numberOfNonBdyEdges function"
+            " before the %s one.\n",
+            __func__,__func__);
+    return 0;
+  }
+
+  ptr_c = ptr_c-sizeof(size_t);
+  na_tot = *((size_t*)ptr_c);
+
+  if ( mesh->namax==na_tot ) {
+    fprintf(stderr,"\n  ## Error: %s: no internal edge.\n"
+            " Please, call the MMG2D_Get_numberOfNonBdyEdges function"
+            " before the %s one and check that the number of internal"
+            " edges is non null.\n",
+            __func__,__func__);
+    return 0;
+  }
+
+  if ( mesh->namax+idx > na_tot ) {
+    fprintf(stderr,"\n  ## Error: %s: Can't get the internal edge of index %d."
+            " Index must be between 1 and %zu.\n",
+            __func__,idx,na_tot-mesh->namax);
+    return 0;
+  }
 
   ped = &mesh->edge[mesh->namax+idx];
 
@@ -521,8 +573,26 @@ void MMG2D_Free_edges(MMG5_pMesh mesh) {
 void MMG2D_Free_solutions(MMG5_pMesh mesh,MMG5_pSol sol) {
 
   /* sol */
-  if ( sol && sol->m )
+  if ( !sol ) return;
+
+  if ( sol->m )
     MMG5_DEL_MEM(mesh,sol->m);
+
+  if ( sol->namein ) {
+    MMG5_DEL_MEM(mesh,sol->namein);
+  }
+
+  if ( sol->nameout ) {
+    MMG5_DEL_MEM(mesh,sol->nameout);
+  }
+
+  memset ( sol, 0x0, sizeof(MMG5_Sol) );
+
+  /* Reset state to a scalar status */
+  sol->dim  = 2;
+  sol->ver  = 2;
+  sol->size = 1;
+  sol->type = 1;
 
   return;
 }

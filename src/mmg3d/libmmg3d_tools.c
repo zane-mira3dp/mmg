@@ -31,6 +31,7 @@
  **/
 
 #include "inlined_functions_3d.h"
+#include "mmgversion.h"
 
 void MMG3D_setfunc(MMG5_pMesh mesh,MMG5_pSol met) {
 
@@ -38,20 +39,20 @@ void MMG3D_setfunc(MMG5_pMesh mesh,MMG5_pSol met) {
     if ( (!met->m) && (!mesh->info.optim) && mesh->info.hsiz<=0. ) {
       MMG5_caltet          = MMG5_caltet_iso;
       MMG5_caltri          = MMG5_caltri_iso;
-      MMG5_lenedg         = MMG5_lenedg_iso;
+      MMG5_lenedg          = MMG5_lenedg_iso;
       MMG3D_lenedgCoor     = MMG5_lenedgCoor_iso;
-      MMG5_lenSurfEdg     = MMG5_lenSurfEdg_iso;
+      MMG5_lenSurfEdg      = MMG5_lenSurfEdg_iso;
     }
     else {
-      MMG5_caltet         = MMG5_caltet_ani;
-      MMG5_caltri         = MMG5_caltri_ani;
-      MMG5_lenedg         = MMG5_lenedg_ani;
+      MMG5_caltet          = MMG5_caltet_ani;
+      MMG5_caltri          = MMG5_caltri_ani;
+      MMG5_lenedg          = MMG5_lenedg_ani;
       MMG3D_lenedgCoor     = MMG5_lenedgCoor_ani;
-      MMG5_lenSurfEdg     = MMG5_lenSurfEdg_ani;
+      MMG5_lenSurfEdg      = MMG5_lenSurfEdg_ani;
     }
-    MMG5_intmet         = MMG5_intmet_ani;
-    MMG5_lenedgspl      = MMG5_lenedg_ani;
-    MMG5_movintpt       = MMG5_movintpt_ani;
+    MMG5_intmet          = MMG5_intmet_ani;
+    MMG5_lenedgspl       = MMG5_lenedg_ani;
+    MMG5_movintpt        = MMG5_movintpt_ani;
     MMG5_movbdyregpt     = MMG5_movbdyregpt_ani;
     MMG5_movbdyrefpt     = MMG5_movbdyrefpt_ani;
     MMG5_movbdynompt     = MMG5_movbdynompt_ani;
@@ -62,8 +63,8 @@ void MMG3D_setfunc(MMG5_pMesh mesh,MMG5_pSol met) {
     MMG3D_gradsiz        = MMG3D_gradsiz_ani;
     MMG3D_gradsizreq     = MMG3D_gradsizreq_ani;
 #ifndef PATTERN
-    MMG5_cavity         = MMG5_cavity_ani;
-    MMG3D_PROctreein      = MMG3D_PROctreein_ani;
+    MMG5_cavity          = MMG5_cavity_ani;
+    MMG3D_PROctreein     = MMG3D_PROctreein_ani;
 #endif
   }
   else {
@@ -117,38 +118,37 @@ int MMG3D_Get_adjaTet(MMG5_pMesh mesh, int kel, int listet[4]) {
 
 int MMG3D_usage(char *prog) {
 
+  /* Common generic options, file options and mode options */
   MMG5_mmgUsage(prog);
 
-  fprintf(stdout,"-A           enable anisotropy (without metric file).\n");
-  fprintf(stdout,"-opnbdy      preserve input triangles at the interface of"
-          " two domains of the same reference.\n");
+  /* Lagrangian option (only for mmg2d/3d) */
+  MMG5_lagUsage();
 
-  fprintf(stdout,"-rmc [val]   Enable the removal of componants whose volume fraction is less than\n"
-          "             val (1e-5 if not given) of the mesh volume (ls mode).\n");
+  /* Common parameters (first section) */
+  MMG5_paramUsage1( );
 
-#ifdef USE_ELAS
-  fprintf(stdout,"-lag [n] Lagrangian mesh displacement according to mode [0/1/2]\n");
-  fprintf(stdout,"             0: displacement\n");
-  fprintf(stdout,"             1: displacement + remeshing (swap and move)\n");
-  fprintf(stdout,"             2: displacement + remeshing (split, collapse,"
-          " swap and move)\n");
-#endif
+  /* Parameters shared by mmg2d and 3d only*/
+  MMG5_2d3dUsage();
+
 #ifndef PATTERN
-  fprintf(stdout,"-octree val  Specify the max number of points per octree cell \n");
+  fprintf(stdout,"-octree val  specify the max number of points per octree cell \n");
 #endif
 #ifdef USE_SCOTCH
-  fprintf(stdout,"-rn [n]      Turn on or off the renumbering using SCOTCH [1/0] \n");
+  fprintf(stdout,"-rn [n]      turn on or off the renumbering using SCOTCH [1/0] \n");
 #endif
   fprintf(stdout,"\n");
 
   fprintf(stdout,"-nofem       do not force Mmg to create a finite element mesh \n");
-  fprintf(stdout,"-optim       mesh optimization\n");
-  fprintf(stdout,"-optimLES    strong mesh optimization for LES computations\n");
-  fprintf(stdout,"-noinsert    no point insertion/deletion \n");
-  fprintf(stdout,"-noswap      no edge or face flipping\n");
-  fprintf(stdout,"-nomove      no point relocation\n");
   fprintf(stdout,"-nosurf      no surface modifications\n");
 
+  fprintf(stdout,"\n");
+
+  /* Common parameters (second section) */
+  MMG5_paramUsage2();
+
+  fprintf(stdout,"-optimLES    enable skewness improvement (for LES computations)\n");
+
+  /* Common options for advanced users */
   MMG5_advancedUsage();
 
   fprintf(stdout,"\n\n");
@@ -179,7 +179,7 @@ int MMG3D_defaultValues(MMG5_pMesh mesh) {
 int MMG3D_parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
   MMG5_pSol tmp = NULL;
   int     i;
-  char    namein[128];
+  char    namein[MMG5_FILESTR_LGTH];
 
   /* First step: search if user want to see the default parameters values. */
   for ( i=1; i< argc; ++i ) {
@@ -342,6 +342,17 @@ int MMG3D_parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol s
           if ( !MMG3D_Set_iparameter(mesh,met,MMG3D_IPARAM_angle,0) )
             return 0;
         }
+        else if ( !strcmp(argv[i],"-nsd") ) {
+          if ( ++i < argc && isdigit(argv[i][0]) ) {
+            if ( !MMG3D_Set_iparameter(mesh,met,MMG3D_IPARAM_numsubdomain,atoi(argv[i])) )
+              return 0;
+          }
+          else {
+            fprintf(stderr,"Missing argument option %c\n",argv[i-1][1]);
+            MMG3D_usage(argv[0]);
+            return 0;
+          }
+        }
         else if ( !strcmp(argv[i],"-noswap") ) {
           if ( !MMG3D_Set_iparameter(mesh,met,MMG3D_IPARAM_noswap,1) )
             return 0;
@@ -365,7 +376,7 @@ int MMG3D_parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol s
         }
         break;
       case 'o':
-        if ( !strcmp(argv[i],"-out") ) {
+        if ( (!strcmp(argv[i],"-out")) || (!strcmp(argv[i],"-o")) ) {
           if ( ++i < argc && isascii(argv[i][0])  && argv[i][0]!='-') {
             if ( !MMG3D_Set_outputMeshName(mesh,argv[i]) )
               return 0;
@@ -539,10 +550,11 @@ int MMG3D_parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol s
 }
 
 int MMG3D_parsop(MMG5_pMesh mesh,MMG5_pSol met) {
-  float       fp1,fp2,hausd;
-  int         ref,i,j,ret,npar,nbr,br;
+  float      fp1,fp2,hausd;
+  int        ref,i,j,ret,npar,nbr,br,rin,rex,split;
   char       *ptr,buf[256],data[256];
   FILE       *in;
+  fpos_t     position;
 
   /* check for parameter file */
   strcpy(data,mesh->namein);
@@ -567,7 +579,7 @@ int MMG3D_parsop(MMG5_pMesh mesh,MMG5_pSol met) {
   }
   if ( mesh->info.imprim >= 0 )
     fprintf(stdout,"\n  %%%% %s OPENED\n",data);
-  
+
   /* read parameters */
   while ( !feof(in) ) {
     /* scan line */
@@ -575,11 +587,46 @@ int MMG3D_parsop(MMG5_pMesh mesh,MMG5_pSol met) {
     if ( !ret || feof(in) )  break;
     for (i=0; i<strlen(data); i++) data[i] = tolower(data[i]);
 
-    /* check for condition type */
-    if ( !strcmp(data,"parameters") ) {
-      MMG_FSCANF(in,"%d",&npar);
-      if ( !MMG3D_Set_iparameter(mesh,met,MMG3D_IPARAM_numberOfLocalParam,npar) )
+    /* Read user-defined references for the LS mode */
+    if ( !strcmp(data,"lsreferences") ) {
+      ret = fscanf(in,"%d",&npar);
+      if ( !ret ) {
+        fprintf(stderr,"  %%%% Wrong format for lsreferences: %d\n",npar);
         return 0;
+      }
+
+      if ( !MMG3D_Set_iparameter(mesh,met,MMG3D_IPARAM_numberOfMat,npar) ) {
+        return 0;
+      }
+      for (i=0; i<mesh->info.nmat; i++) {
+        MMG_FSCANF(in,"%d",&ref);
+        fgetpos(in,&position);
+        MMG_FSCANF(in,"%255s",data);
+        split = MMG5_MMAT_NoSplit;
+        rin = rex = ref;
+        if ( strcmp(data,"nosplit") ) {
+          fsetpos(in,&position);
+          split = MMG5_MMAT_Split;
+          MMG_FSCANF(in,"%d",&rin);
+          MMG_FSCANF(in,"%d",&rex);
+        }
+        if ( !MMG3D_Set_multiMat(mesh,met,ref,split,rin,rex) ) {
+          return 0;
+        }
+      }
+    }
+    /* Read user-defined local parameters and store them in the structure info->par */
+    else if ( !strcmp(data,"parameters") ) {
+      ret = fscanf(in,"%d",&npar);
+
+      if ( !ret ) {
+        fprintf(stderr,"  %%%% Wrong format for parameters: %d\n",npar);
+        return 0;
+      }
+
+      if ( !MMG3D_Set_iparameter(mesh,met,MMG3D_IPARAM_numberOfLocalParam,npar) ) {
+        return 0;
+      }
 
       for (i=0; i<mesh->info.npar; i++) {
         ret = fscanf(in,"%d %255s ",&ref,buf);
@@ -613,7 +660,7 @@ int MMG3D_parsop(MMG5_pMesh mesh,MMG5_pSol met) {
       MMG_FSCANF(in,"%d",&nbr);
       if ( !MMG3D_Set_iparameter(mesh,met,MMG3D_IPARAM_numberOfLSBaseReferences,nbr) )
         return 0;
-      
+
       for (i=0; i<mesh->info.nbr; i++) {
         MMG_FSCANF(in,"%d",&br);
         mesh->info.br[i] = br;
@@ -621,6 +668,274 @@ int MMG3D_parsop(MMG5_pMesh mesh,MMG5_pSol met) {
     }
   }
   fclose(in);
+  return 1;
+}
+
+int MMG3D_freeLocalPar(MMG5_pMesh mesh) {
+
+  free(mesh->info.par);
+  mesh->info.npar = 0;
+
+  return 1;
+}
+
+int MMG3D_Get_numberOfNonBdyTriangles(MMG5_pMesh mesh, int* nb_tria) {
+  MMG5_pTetra pt,pt1;
+  MMG5_pPrism pp;
+  MMG5_pTria  ptt;
+  MMG5_Hash   hash;
+  int         *adja,ref,k,i,j,iel;
+
+  *nb_tria = 0;
+  memset ( &hash, 0x0, sizeof(MMG5_Hash));
+
+  if ( !mesh->tetra ) {
+    /* No triangle at all */
+    return 1;
+  }
+
+  /** First step: Mesh analysis to detect the tetra/prisms boundary faces and to
+   * store the info in the xtetra/xprisms structures */
+  if ( !mesh->adja ) {
+    /* create tetra adjacency */
+    if ( !MMG3D_hashTetra( mesh,0 ) ) {
+      fprintf(stderr,"\n  ## Error: %s: unable to create "
+              "adjacency table.\n",__func__);
+      return 0;
+    }
+  }
+
+  if ( !mesh->adjapr ) {
+    /* create prism adjacency */
+    if ( !MMG3D_hashPrism(mesh) ) {
+      fprintf(stderr,"\n  ## Error: %s: Prism hashing problem.\n",__func__);
+      return 0;
+    }
+  }
+
+  /* If mesh->xtetra is filled, we assume that the surface analysis is
+   * complete */
+  if ( !mesh->xtetra ) {
+    /* compatibility triangle orientation w/r tetras */
+    if ( !MMG5_bdryPerm(mesh) ) {
+      fprintf(stderr,"\n  ## Error: %s: Boundary orientation problem.\n",__func__);
+      return 0;
+    }
+    /* identify surface mesh */
+    if ( !MMG5_chkBdryTria(mesh) ) {
+      fprintf(stderr,"\n  ## Error: %s: Boundary problem.\n",__func__);
+      return 0;
+    }
+    MMG5_freeXTets(mesh);
+    MMG5_freeXPrisms(mesh);
+
+    /* create surface adjacency */
+    if ( !MMG3D_hashTria(mesh,&hash) ) {
+      MMG5_DEL_MEM(mesh,hash.item);
+      fprintf(stderr,"\n  ## Error: %s: Hashing problem.\n",__func__);
+      return 0;
+    }
+
+    /* identify connexity and flip orientation of faces if needed */
+    if ( !MMG5_setadj(mesh) ) {
+      fprintf(stderr,"\n  ## Error: %s: Topology problem.\n",__func__);
+      MMG5_DEL_MEM(mesh,hash.item);
+      return 0;
+    }
+
+    /* set bdry entities to tetra and fill the orientation field */
+    if ( !MMG5_bdrySet(mesh) ) {
+      MMG5_DEL_MEM(mesh,hash.item);
+      fprintf(stderr,"\n  ## Error: %s: Boundary problem.\n",__func__);
+      return 0;
+    }
+    MMG5_DEL_MEM(mesh,hash.item);
+  }
+
+  /** Second step: Count the number of non boundary faces */
+  for ( k=1; k<=mesh->ne; k++ ) {
+    pt = &mesh->tetra[k];
+    if ( !MG_EOK(pt) ) continue;
+
+    adja = &mesh->adja[4*(k-1)+1];
+
+    for ( i=0; i<4; i++ ) {
+      iel = adja[i] / 4;
+      assert ( iel != k );
+
+      pt1 = &mesh->tetra[iel];
+
+      if ( (!iel) || (pt->ref != pt1->ref) ||
+           (mesh->info.opnbdy && pt->xt &&
+            (mesh->xtetra[pt->xt].ftag[i] & MG_BDY) ) ) {
+        /* Do not treat boundary faces */
+        continue;
+      }
+      if ( k < iel ) {
+        /* Treat face from the tetra with lowest index */
+        ++(*nb_tria);
+      }
+    }
+  }
+  for ( k=1; k<=mesh->nprism; k++ ) {
+    pp = &mesh->prism[k];
+    if ( !MG_EOK(pp) ) continue;
+
+    adja = &mesh->adjapr[5*(k-1)+1];
+
+    for ( i=0; i<2; i++ ) {
+      iel = adja[i] / 5;
+
+      if ( iel<0 ) {
+        ref = mesh->tetra[abs(iel)].ref;
+      } else {
+        ref = mesh->prism[iel].ref;
+      }
+
+      if ( (!iel) || (pp->ref != ref) ||
+           (mesh->info.opnbdy && pp->xpr &&
+            (mesh->xprism[pp->xpr].ftag[i] & MG_BDY) ) ) {
+        /* Do not treat boundary faces */
+        continue;
+      }
+      if ( k < iel ) {
+        /* Treat face from the element with lowest index */
+        ++(*nb_tria);
+      }
+    }
+  }
+
+  if ( !(*nb_tria) ) {
+    return 1;
+  }
+
+  /** Third step: Append the non boundary edges to the boundary edges array */
+  if ( mesh->nt ) {
+    MMG5_ADD_MEM(mesh,(*nb_tria)*sizeof(MMG5_Tria),"non boundary triangles",
+                 printf("  Exit program.\n");
+                 MMG5_DEL_MEM(mesh,hash.item);
+                 return 0);
+    MMG5_SAFE_RECALLOC(mesh->tria,(mesh->nt+1),(mesh->nt+(*nb_tria)+1),
+                       MMG5_Tria,"non bdy tria arrray",return 0);
+  }
+  else {
+    MMG5_ADD_MEM(mesh,((*nb_tria)+1)*sizeof(MMG5_Tria),"non boundary triangles",
+                 printf("  Exit program.\n");
+                 MMG5_DEL_MEM(mesh,hash.item);
+                 return 0);
+    MMG5_SAFE_RECALLOC(mesh->tria,0,((*nb_tria)+1),
+                       MMG5_Tria,"non bdy tria arrray",return 0);
+  }
+
+  j = mesh->nt+1;
+  for ( k=1; k<=mesh->ne; k++ ) {
+    pt = &mesh->tetra[k];
+    if ( !MG_EOK(pt) ) continue;
+
+    adja = &mesh->adja[4*(k-1)+1];
+
+    for ( i=0; i<4; i++ ) {
+      iel = adja[i] / 4;
+      assert ( iel != k );
+
+      pt1 = &mesh->tetra[iel];
+
+      if ( (!iel) || (pt->ref != pt1->ref) ||
+           (mesh->info.opnbdy && pt->xt &&
+            (mesh->xtetra[pt->xt].ftag[i] & MG_BDY)) ) {
+        /* Do not treat boundary faces */
+        continue;
+      }
+      if ( k < iel ) {
+        /* Treat edge from the triangle with lowest index */
+        ptt = &mesh->tria[j++];
+        assert ( ptt );
+        ptt->v[0]   = pt->v[MMG5_idir[i][0]];
+        ptt->v[1]   = pt->v[MMG5_idir[i][1]];
+        ptt->v[2]   = pt->v[MMG5_idir[i][2]];
+        ptt->ref    = mesh->xtetra[pt->xt].ref[i];
+      }
+    }
+  }
+
+  for ( k=1; k<=mesh->nprism; k++ ) {
+    pp = &mesh->prism[k];
+    if ( !MG_EOK(pp) ) continue;
+
+    adja = &mesh->adjapr[5*(k-1)+1];
+
+    for ( i=0; i<2; i++ ) {
+      iel = adja[i] / 5;
+
+      if ( iel<0 ) {
+        ref = mesh->tetra[abs(iel)].ref;
+      } else {
+        ref = mesh->prism[iel].ref;
+      }
+      if ( (!iel) || (pp->ref != ref) ||
+           (mesh->info.opnbdy && pp->xpr &&
+            (mesh->xprism[pp->xpr].ftag[i] & MG_BDY)) ) {
+        /* Do not treat boundary faces */
+        continue;
+      }
+      if ( k < iel ) {
+        /* Treat edge from the triangle with lowest index */
+        ptt = &mesh->tria[j++];
+        assert ( ptt );
+        ptt->v[0]   = pp->v[MMG5_idir_pr[i][0]];
+        ptt->v[1]   = pp->v[MMG5_idir_pr[i][1]];
+        ptt->v[2]   = pp->v[MMG5_idir_pr[i][2]];
+        ptt->ref    = mesh->xprism[pp->xpr].ref[i];
+      }
+    }
+  }
+
+  return 1;
+}
+
+int MMG3D_Get_nonBdyTriangle(MMG5_pMesh mesh,int* v0,int* v1,int* v2,
+                             int* ref,int idx) {
+  MMG5_pTria ptt;
+  size_t     nt_tot=0;
+  char       *ptr_c = (char*)mesh->tria;
+
+  if ( !mesh->tria ) {
+    fprintf(stderr,"\n  ## Error: %s: triangle array is not allocated.\n"
+            " Please, call the MMG3D_Get_numberOfNonBdyTriangles function"
+            " before the %s one.\n",
+            __func__,__func__);
+    return 0;
+  }
+
+  ptr_c = ptr_c-sizeof(size_t);
+  nt_tot = *((size_t*)ptr_c);
+
+  if ( mesh->nt==nt_tot ) {
+    fprintf(stderr,"\n  ## Error: %s: no internal triangle.\n"
+            " Please, call the MMG3D_Get_numberOfNonBdyTriangles function"
+            " before the %s one and check that the number of internal"
+            " triangles is non null.\n",
+            __func__,__func__);
+    return 0;
+  }
+
+  if ( mesh->nt+idx > nt_tot ) {
+    fprintf(stderr,"\n  ## Error: %s: Can't get the internal triangle of index %d."
+            " Index must be between 1 and %zu.\n",
+            __func__,idx,nt_tot-mesh->nt);
+    return 0;
+  }
+
+  ptt = &mesh->tria[mesh->nt+idx];
+
+  *v0  = ptt->v[0];
+  *v1  = ptt->v[1];
+  *v2  = ptt->v[2];
+
+  if ( ref != NULL ) {
+    *ref = ptt->ref;
+  }
+
   return 1;
 }
 
@@ -644,7 +959,7 @@ void MMG3D_destockOptions(MMG5_pMesh mesh, MMG5_Info *info) {
 }
 
 int MMG3D_mmg3dcheck(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol,double critmin, double lmin,
-                    double lmax, int *eltab,char metRidTyp) {
+                    double lmax, int *eltab,int8_t metRidTyp) {
 
   mytime    ctim[TIMEMAX];
   int       ier;
@@ -721,7 +1036,8 @@ int MMG3D_mmg3dcheck(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol,double critmin,
   MMG3D_setfunc(mesh,met);
 
   if ( mesh->info.imprim > 0 ) {
-    fprintf(stdout,"\n  %s\n   MODULE MMG3D: IMB-LJLL : %s (%s)\n  %s\n",MG_STR,MG_VER,MG_REL,MG_STR);
+    fprintf(stdout,"\n  %s\n   MODULE MMG3D: IMB-LJLL : %s (%s)\n  %s\n",
+            MG_STR,MMG_VERSION_RELEASE,MMG_RELEASE_DATE,MG_STR);
     fprintf(stdout,"\n  -- PHASE 1 : ANALYSIS\n");
   }
 
@@ -738,7 +1054,7 @@ int MMG3D_mmg3dcheck(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol,double critmin,
 }
 
 void MMG3D_searchqua(MMG5_pMesh mesh,MMG5_pSol met,double critmin, int *eltab,
-                    char metRidTyp) {
+                    int8_t metRidTyp) {
   MMG5_pTetra   pt;
   double   rap;
   int      k;
@@ -830,12 +1146,12 @@ int MMG3D_Get_tetsFromTria(MMG5_pMesh mesh, int ktri, int ktet[2], int iface[2])
 
 
 int MMG3D_searchlen(MMG5_pMesh mesh, MMG5_pSol met, double lmin,
-                   double lmax, int *eltab,char metRidTyp) {
-  MMG5_pTetra          pt;
- MMG5_Hash           hash;
-  double          len;
-  int             k,np,nq;
-  char            ia,i0,i1,ier;
+                    double lmax, int *eltab,int8_t metRidTyp) {
+  MMG5_pTetra pt;
+  MMG5_Hash   hash;
+  double      len;
+  int         k,np,nq;
+  int8_t      ia,i0,i1,ier;
 
   /* Hash all edges in the mesh */
   if ( !MMG5_hashNew(mesh,&hash,mesh->np,7*mesh->np) )  return 0;
@@ -1068,4 +1384,31 @@ int MMG3D_Compute_eigenv(double m[6],double lambda[3],double vp[3][3]) {
 
   return  MMG5_eigenv(1,m,lambda,vp);
 
+}
+
+void MMG3D_Free_solutions(MMG5_pMesh mesh,MMG5_pSol sol) {
+
+  /* sol */
+  if ( !sol ) return;
+
+  if ( sol->m )
+    MMG5_DEL_MEM(mesh,sol->m);
+
+  if ( sol->namein ) {
+    MMG5_DEL_MEM(mesh,sol->namein);
+  }
+
+  if ( sol->nameout ) {
+    MMG5_DEL_MEM(mesh,sol->nameout);
+  }
+
+  memset ( sol, 0x0, sizeof(MMG5_Sol) );
+
+  /* Reset state to a scalar status */
+  sol->dim  = 3;
+  sol->ver  = 2;
+  sol->size = 1;
+  sol->type = 1;
+
+  return;
 }

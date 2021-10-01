@@ -50,13 +50,13 @@
  * check if geometry preserved by collapsing edge i
  *
  */
-int chkcol(MMG5_pMesh mesh,MMG5_pSol met,int k,char i,int *list,char typchk) {
+int chkcol(MMG5_pMesh mesh,MMG5_pSol met,int k,int8_t i,int *list,int8_t typchk) {
   MMG5_pTria     pt,pt0,pt1,pt2;
   MMG5_pPoint    p1,p2;
   double         len,lon,ps,cosnold,cosnnew,kal,n0old[3],n1old[3],n00old[3];
   double         n0new[3],n1new[3],n00new[3];
   int            *adja,jel,kel,ip1,ip2,l,ll,ilist;
-  char           i1,i2,j,jj,j2,lj,open,voy;
+  int8_t         i1,i2,j,jj,j2,lj,open,voy;
 
   pt0 = &mesh->tria[0];
   pt  = &mesh->tria[k];
@@ -64,6 +64,18 @@ int chkcol(MMG5_pMesh mesh,MMG5_pSol met,int k,char i,int *list,char typchk) {
   i2  = MMG5_iprv2[i];
   ip1 = pt->v[i1];
   ip2 = pt->v[i2];
+
+#ifndef NDEBUG
+  /* suppression of maybe-uninitialized value on arm */
+  lon = 0.;
+  n00old[0] = n00old[1] = n00old[2] = 0.;
+  n0old[0]  = n0old[1]  = n0old[2]  = 0.;
+  n1old[0]  = n1old[1]  = n1old[2]  = 0.;
+  n00new[0] = n00new[1] = n00new[2] = 0.;
+  n0new[0]  = n0new[1]  = n0new[2]  = 0.;
+  n1new[0]  = n1new[1]  = n1new[2]  = 0.;
+#endif
+
   if ( typchk == 2 && met->m ) {
     lon = MMG5_lenSurfEdg(mesh,met,ip1,ip2,0);
     if ( !lon ) return 0;
@@ -265,7 +277,7 @@ int chkcol(MMG5_pMesh mesh,MMG5_pSol met,int k,char i,int *list,char typchk) {
 int colver(MMG5_pMesh mesh,int *list,int ilist) {
   MMG5_pTria    pt,pt1,pt2;
   int     *adja,k,iel,jel,kel,ip1,ip2;
-  char     i,i1,i2,j,jj,open;
+  int8_t   i,i1,i2,j,jj,open;
 
   iel = list[0] / 3;
   i1  = list[0] % 3;
@@ -348,14 +360,14 @@ int colver(MMG5_pMesh mesh,int *list,int ilist) {
  * \param list pointer toward the ball of the point to collapse.
  * \return 1 if success, 0 if fail.
  *
- * Collapse edge \f$list[0]%3\f$ in tet \f$list[0]/3\f$ (\f$ ip->i1\f$ ) for a
+ * Collapse edge \f$list[0]\%3\f$ in tet \f$list[0]/3\f$ (\f$ ip->i1\f$ ) for a
  * ball of the collapsed point of size 3: the collapsed point is removed.
  *
  */
 int colver3(MMG5_pMesh mesh,int* list) {
   MMG5_pTria   pt,pt1,pt2;
   int          *adja,iel,jel,kel,mel,ip;
-  char         i,i1,j,j1,j2,k,m;
+  int8_t       i,i1,j,j1,j2,k,m;
 
   /* update of new point for triangle list[0] */
   iel = list[0] / 3;
@@ -418,7 +430,7 @@ int colver3(MMG5_pMesh mesh,int* list) {
 int colver2(MMG5_pMesh mesh,int* list) {
   MMG5_pTria   pt,pt1;
   int          *adja,iel,jel,kel,ip;
-  char         i1,i2,jj,j2,k;
+  int8_t       i1,i2,jj,j2,k;
 
   /* update of new point for triangle list[0] */
   iel = list[0] / 3;
@@ -455,12 +467,13 @@ int colver2(MMG5_pMesh mesh,int* list) {
 }
 
 /* collapse edge i of k, i1->i2 */
-int litcol(MMG5_pMesh mesh,int k,char i,double kali) {
+int litcol(MMG5_pMesh mesh,int k,int8_t i,double kali) {
   MMG5_pTria     pt,pt0,pt1;
   MMG5_pPoint    p1,p2;
-  double         kal,ps,cosnold,cosnnew,n0old[3],n0new[3],n1old[3],n1new[3],n00old[3],n00new[3];
+  double         kal,ps,cosnold,cosnnew;
+  double         n0old[3],n0new[3],n1old[3],n1new[3],n00old[3],n00new[3];
   int            *adja,list[MMGS_LMAX+2],jel,ip2,l,ilist;
-  char           i1,i2,j,jj,j2,open;
+  int8_t         i1,i2,j,jj,j2,open;
 
   pt0 = &mesh->tria[0];
   pt  = &mesh->tria[k];

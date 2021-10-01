@@ -34,7 +34,7 @@
 #include <float.h>
 
 #include "libmmg2d.h"
-#include "mmgcommon.h"
+#include "libmmgcommon.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,7 +73,7 @@ extern "C" {
 #define MMG2D_NEMAX   100000
 
 /** \brief idir[i]: vertices of edge i for a quad */
-static const unsigned char MMG2D_idir_q[4][2] = { {0,1},{0,3},{1,2},{2,3} };
+static const uint8_t MMG2D_idir_q[4][2] = { {0,1},{0,3},{1,2},{2,3} };
 
 /** Free allocated pointers of mesh and sol structure and return value val */
 #define MMG2D_RETURN_AND_FREE(mesh,met,ls,disp,val)do               \
@@ -137,6 +137,7 @@ static const unsigned int MMG2D_inxt[5] = {1,2,0,1,2};
   {                                                                     \
     int klink;                                                          \
                                                                         \
+    assert ( mesh && mesh->point );                                     \
     MMG5_TAB_RECALLOC(mesh,mesh->point,mesh->npmax,wantedGap,MMG5_Point, \
                        "larger point table",law);                       \
                                                                         \
@@ -223,7 +224,7 @@ int MMG2D_mmg2d2(MMG5_pMesh , MMG5_pSol);
 int MMG2D_mmg2d6(MMG5_pMesh ,MMG5_pSol,MMG5_pSol );
 int MMG2D_mmg2d9(MMG5_pMesh ,MMG5_pSol ,MMG5_pSol,int** );
 //int MMG2D_cendel(MMG5_pMesh ,MMG5_pSol ,double ,int );
-int MMG2D_swapdelone(MMG5_pMesh ,MMG5_pSol ,int ,char ,double ,int *);
+int MMG2D_swapdelone(MMG5_pMesh ,MMG5_pSol ,int ,int8_t ,double ,int *);
 int MMG5_mmg2dChkmsh(MMG5_pMesh , int, int );
 int MMG2D_2dMeshCheck(MMG5_pMesh mesh);
 int MMG2D_boulep(MMG5_pMesh , int , int , int * );
@@ -249,8 +250,6 @@ int MMG2D_kiupop(pQueue q);
 
 int MMG2D_baseBdry(MMG5_pMesh mesh);
 
-int simred(double *m1,double *m2,double *m);
-
 //int MMG2D_evalgeom(MMG5_pMesh mesh);
 
 int MMG2D_cavity(MMG5_pMesh ,MMG5_pSol ,int ,int *);
@@ -260,10 +259,8 @@ int MMG2D_cenrad_iso(MMG5_pMesh ,double *,double *,double *);
 /* Adds Charles */
 double MMG2D_voltri(MMG5_pMesh ,int ,int ,int );
 double MMG2D_vfrac(MMG5_pMesh ,MMG5_pSol ,int ,int );
-int MMG2D_getIniRef(MMG5_pMesh ,int );
-int MMG2D_isSplit(MMG5_pMesh ,int ,int *,int *);
 int MMG2D_parsop(MMG5_pMesh ,MMG5_pSol );
-int MMG2D_ismaniball(MMG5_pMesh , MMG5_pSol , int , char );
+int MMG2D_ismaniball(MMG5_pMesh , MMG5_pSol , int , int8_t );
 int MMG2D_snapval(MMG5_pMesh ,MMG5_pSol);
 int MMG2D_chkmanimesh(MMG5_pMesh );
 int MMG2D_hashTria(MMG5_pMesh );
@@ -286,14 +283,14 @@ int MMG2D_singul(MMG5_pMesh,int );
 int MMG2D_analys(MMG5_pMesh );
 int MMG2D_norver(MMG5_pMesh,int );
 int MMG2D_regnor(MMG5_pMesh );
-int MMG2D_boulen(MMG5_pMesh , int ,char ,int *,int *,double *);
+int MMG2D_boulen(MMG5_pMesh , int ,int8_t ,int *,int *,double *);
 int MMG2D_mmg2d1n(MMG5_pMesh ,MMG5_pSol );
-int MMG2D_anatri(MMG5_pMesh ,MMG5_pSol ,char );
+int MMG2D_anatri(MMG5_pMesh ,MMG5_pSol ,int8_t );
 int MMG2D_adptri(MMG5_pMesh ,MMG5_pSol );
 int MMG2D_defsiz_iso(MMG5_pMesh ,MMG5_pSol );
 int MMG2D_defsiz_ani(MMG5_pMesh ,MMG5_pSol );
-int MMG2D_defmetbdy_2d(MMG5_pMesh ,MMG5_pSol ,int ,char );
-int MMG2D_defaultmet_2d(MMG5_pMesh ,MMG5_pSol ,int ,char );
+int MMG2D_defmetbdy_2d(MMG5_pMesh ,MMG5_pSol ,int ,int8_t );
+int MMG2D_defaultmet_2d(MMG5_pMesh ,MMG5_pSol ,int ,int8_t );
 int MMG2D_grad2met_ani(MMG5_pMesh ,MMG5_pSol ,MMG5_pTria,int,int);
 int MMG2D_grad2metreq_ani(MMG5_pMesh ,MMG5_pSol ,MMG5_pTria,int,int);
 int MMG2D_gradsiz_ani(MMG5_pMesh ,MMG5_pSol );
@@ -304,35 +301,38 @@ int MMG2D_swpmsh(MMG5_pMesh ,MMG5_pSol ,int );
 double MMG2D_lencurv_iso(MMG5_pMesh ,MMG5_pSol ,int ,int );
 double MMG2D_lencurv_ani(MMG5_pMesh ,MMG5_pSol ,int ,int );
 int MMG2D_chkedg(MMG5_pMesh ,int );
-int MMG2D_bezierCurv(MMG5_pMesh ,int ,char ,double ,double *,double *);
+int MMG2D_bezierCurv(MMG5_pMesh ,int ,int8_t ,double ,double *,double *);
 int MMG2D_dichoto(MMG5_pMesh ,MMG5_pSol ,int ,int *);
 double MMG2D_quickcal(MMG5_pMesh , MMG5_pTria );
-int MMG2D_chkcol(MMG5_pMesh,MMG5_pSol,int,char,int *,char);
+int MMG2D_chkcol(MMG5_pMesh,MMG5_pSol,int,int8_t,int *,int8_t);
 int MMG2D_colver(MMG5_pMesh,int,int*);
 int MMG2D_colver3(MMG5_pMesh,int*);
 int MMG2D_colver2(MMG5_pMesh,int*);
-int MMG2D_boulet(MMG5_pMesh,int,char,int*);
-int MMG2D_bouleendp(MMG5_pMesh,int,char,int*,int*);
-int MMG2D_savemesh_db(MMG5_pMesh ,char* ,char );
-int MMG2D_savemet_db(MMG5_pMesh ,MMG5_pSol ,char* ,char );
-int MMG2D_chkswp(MMG5_pMesh , MMG5_pSol ,int ,char ,char );
-int MMG2D_swapar(MMG5_pMesh ,int ,char );
+int MMG2D_boulet(MMG5_pMesh,int,int8_t,int*);
+int MMG2D_bouleendp(MMG5_pMesh,int,int8_t,int*,int*);
+int MMG2D_savemesh_db(MMG5_pMesh ,char* ,int8_t );
+int MMG2D_savemet_db(MMG5_pMesh ,MMG5_pSol ,char* ,int8_t );
+int MMG2D_chkswp(MMG5_pMesh , MMG5_pSol ,int ,int8_t ,int8_t );
+int MMG2D_swapar(MMG5_pMesh ,int ,int8_t );
 int MMG5_interpmet22(MMG5_pMesh ,double *,double *,double ,double *);
-int MMG2D_intmet_iso(MMG5_pMesh ,MMG5_pSol ,int ,char ,int ,double );
-int MMG2D_intmet_ani(MMG5_pMesh ,MMG5_pSol ,int ,char ,int ,double );
+int MMG2D_intmet_iso(MMG5_pMesh ,MMG5_pSol ,int ,int8_t ,int ,double );
+int MMG2D_intmet_ani(MMG5_pMesh ,MMG5_pSol ,int ,int8_t ,int ,double );
 int MMG2D_adpspl(MMG5_pMesh ,MMG5_pSol );
 int MMG2D_adpcol(MMG5_pMesh ,MMG5_pSol );
-int MMG2D_movtri(MMG5_pMesh ,MMG5_pSol ,int ,char );
-int MMG2D_chkspl(MMG5_pMesh ,MMG5_pSol ,int ,char );
-int MMG2D_split1b(MMG5_pMesh ,int ,char ,int );
-int MMG2D_movedgpt(MMG5_pMesh ,MMG5_pSol ,int ,int *,char );
-int MMG2D_movintpt(MMG5_pMesh ,MMG5_pSol ,int ,int *,char );
-int MMG2D_movintpt_ani(MMG5_pMesh ,MMG5_pSol ,int ,int *,char );
+int MMG2D_movtri(MMG5_pMesh ,MMG5_pSol ,int ,int8_t );
+int MMG2D_chkspl(MMG5_pMesh ,MMG5_pSol ,int ,int8_t );
+int MMG2D_split1b(MMG5_pMesh ,int ,int8_t ,int );
+int MMG2D_movedgpt(MMG5_pMesh ,MMG5_pSol ,int ,int *,int8_t );
+int MMG2D_movintpt(MMG5_pMesh ,MMG5_pSol ,int ,int *,int8_t );
+int MMG2D_movintpt_ani(MMG5_pMesh ,MMG5_pSol ,int ,int *,int8_t );
 int MMG2D_chkmsh(MMG5_pMesh );
 int MMG2D_chkor(MMG5_pMesh );
-int MMG2D_savenor_db(MMG5_pMesh ,char *,char );
-int MMG2D_savedisp_db(MMG5_pMesh mesh,MMG5_pSol ,char *,char );
+int MMG2D_savenor_db(MMG5_pMesh ,char*,int8_t );
+int MMG2D_savedisp_db(MMG5_pMesh mesh,MMG5_pSol ,char*,int8_t );
 int MMG2D_velextLS(MMG5_pMesh ,MMG5_pSol );
+
+/* tools */
+void MMG2D_keep_only1Subdomain ( MMG5_pMesh mesh,int nsd );
 
 /* useful functions to debug */
 int  MMG2D_indElt(MMG5_pMesh mesh,int kel);
@@ -353,13 +353,13 @@ int    interp_ani(double *,double *,double * ,double );
 int    interp_iso(double *,double *,double * ,double );
 int    lissmet_iso(MMG5_pMesh mesh,MMG5_pSol sol);
 int    lissmet_ani(MMG5_pMesh mesh,MMG5_pSol sol);
-int    MMG2D_sum_reqEdgeLengthsAtPoint(MMG5_pMesh,MMG5_pSol,MMG5_pTria,char);
+int    MMG2D_sum_reqEdgeLengthsAtPoint(MMG5_pMesh,MMG5_pSol,MMG5_pTria,int8_t);
 int    MMG2D_set_metricAtPointsOnReqEdges(MMG5_pMesh,MMG5_pSol,int8_t);
 
 extern double (*MMG2D_lencurv)(MMG5_pMesh ,MMG5_pSol ,int ,int );
 extern double (*MMG2D_caltri)(MMG5_pMesh ,MMG5_pSol ,MMG5_pTria );
 extern int    (*MMG2D_optlen)(MMG5_pMesh ,MMG5_pSol ,double ,int );
-extern int    (*MMG2D_intmet)(MMG5_pMesh ,MMG5_pSol ,int ,char ,int ,double );
+extern int    (*MMG2D_intmet)(MMG5_pMesh ,MMG5_pSol ,int ,int8_t ,int ,double );
 extern int    (*MMG2D_gradsiz)(MMG5_pMesh ,MMG5_pSol );
 extern int    (*MMG2D_gradsizreq)(MMG5_pMesh ,MMG5_pSol );
 extern int    (*MMG2D_defsiz)(MMG5_pMesh ,MMG5_pSol );
@@ -372,7 +372,7 @@ void  MMG2D_Init_parameters(MMG5_pMesh mesh);
  * functions.
  */
 static inline
-void MMG2D_Set_commonFunc() {
+void MMG2D_Set_commonFunc(void) {
   MMG5_chkmsh            = MMG5_mmg2dChkmsh;
   MMG5_grad2met_ani      = MMG2D_grad2met_ani;
   MMG5_grad2metreq_ani   = MMG2D_grad2metreq_ani;

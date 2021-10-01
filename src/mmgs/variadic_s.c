@@ -38,7 +38,7 @@
  */
 
 #include "mmgs.h"
-#include "mmgsexterns.c"
+#include "mmgsexterns.h"
 
 /**
  * \param mesh pointer toward the mesh structure.
@@ -152,6 +152,7 @@ int MMGS_Init_mesh_var( va_list argptr ) {
   int            meshCount;
 
   meshCount = 0;
+  mesh = NULL;
   sol = ls = NULL;
 
 
@@ -235,11 +236,11 @@ int MMGS_Free_all_var(va_list argptr)
 {
 
   MMG5_pMesh     *mesh;
-  MMG5_pSol      psl,*sol,*sols,*ls;
+  MMG5_pSol      *sol,*sols,*ls;
   int            typArg;
-  int            meshCount,i;
+  int            meshCount,metCount,lsCount,fieldsCount;
 
-  meshCount = 0;
+  meshCount = metCount = lsCount = fieldsCount = 0;
   sol = sols = ls = NULL;
 
   while ( (typArg = va_arg(argptr,int)) != MMG5_ARG_end )
@@ -251,12 +252,15 @@ int MMGS_Free_all_var(va_list argptr)
       ++meshCount;
       break;
     case(MMG5_ARG_ppMet):
+      ++metCount;
       sol = va_arg(argptr,MMG5_pSol*);
       break;
     case(MMG5_ARG_ppLs):
+      ++lsCount;
       ls = va_arg(argptr,MMG5_pSol*);
       break;
     case(MMG5_ARG_ppSols):
+      ++fieldsCount;
       sols = va_arg(argptr,MMG5_pSol*);
       break;
     default:
@@ -276,9 +280,16 @@ int MMGS_Free_all_var(va_list argptr)
     return 0;
   }
 
+  if ( metCount > 1 || lsCount > 1 || fieldsCount > 1 ) {
+    fprintf(stdout,"\n  ## Warning: %s: MMGS_Free_all:\n"
+            " This function can free only one structure of each type.\n"
+            " Probable memory leak.\n",
+            __func__);
+  }
+
   if ( !MMGS_Free_structures(MMG5_ARG_start,
                              MMG5_ARG_ppMesh, mesh, MMG5_ARG_ppMet, sol,
-                             MMG5_ARG_ppLs, ls,
+                             MMG5_ARG_ppLs, ls,MMG5_ARG_ppSols, sols,
                              MMG5_ARG_end) )
     return 0;
 
@@ -286,12 +297,6 @@ int MMGS_Free_all_var(va_list argptr)
     MMG5_SAFE_FREE(*sol);
 
   if ( sols ) {
-    for ( i=0; i<(*mesh)->nsols; ++i ) {
-      psl = (*sols) + i;
-      if ( psl->m ) {
-        MMG5_DEL_MEM(*mesh,psl->m);
-      }
-    }
     MMG5_DEL_MEM(*mesh,*sols);
   }
 
@@ -330,12 +335,12 @@ int MMGS_Free_structures_var(va_list argptr)
 {
 
   MMG5_pMesh     *mesh;
-  MMG5_pSol      *sol,*ls;
-  int            typArg;
+  MMG5_pSol      *sol,*ls,*sols;
+  int            typArg,i;
   int            meshCount;
 
   meshCount = 0;
-  sol = ls = NULL;
+  sol = ls = sols = NULL;
 
   while ( (typArg = va_arg(argptr,int)) != MMG5_ARG_end )
   {
@@ -350,6 +355,9 @@ int MMGS_Free_structures_var(va_list argptr)
       break;
     case(MMG5_ARG_ppLs):
       ls = va_arg(argptr,MMG5_pSol*);
+      break;
+    case(MMG5_ARG_ppSols):
+      sols = va_arg(argptr,MMG5_pSol*);
       break;
     default:
       fprintf(stderr,"\n  ## Error: %s: MMGS_Free_structures:\n"
@@ -370,7 +378,7 @@ int MMGS_Free_structures_var(va_list argptr)
 
   MMGS_Free_names(MMG5_ARG_start,
                   MMG5_ARG_ppMesh, mesh, MMG5_ARG_ppMet, sol,
-                  MMG5_ARG_ppLs, ls,
+                  MMG5_ARG_ppLs, ls, MMG5_ARG_ppSols, sols,
                   MMG5_ARG_end);
 
   /* mesh */
@@ -384,6 +392,13 @@ int MMGS_Free_structures_var(va_list argptr)
   /* met */
   if ( sol && (*sol) && (*sol)->m ) {
     MMG5_DEL_MEM((*mesh),(*sol)->m);
+  }
+
+  /* field */
+  if ( sols && (*mesh)->nsols ) {
+    for ( i=0; i<(*mesh)->nsols; ++i ) {
+      MMG5_DEL_MEM((*mesh),(*sols)[i].m);
+    }
   }
 
   MMG5_Free_structures(*mesh,NULL);
@@ -422,12 +437,12 @@ int MMGS_Free_names_var(va_list argptr)
 {
 
   MMG5_pMesh     *mesh;
-  MMG5_pSol      *sol,*ls;
-  int            typArg;
+  MMG5_pSol      psl,*sol,*ls,*sols;
+  int            typArg,i;
   int            meshCount;
 
   meshCount = 0;
-  sol = ls = NULL;
+  sol = ls = sols = NULL;
 
   while ( (typArg = va_arg(argptr,int)) != MMG5_ARG_end )
   {
@@ -442,6 +457,9 @@ int MMGS_Free_names_var(va_list argptr)
       break;
     case(MMG5_ARG_ppLs):
       ls = va_arg(argptr,MMG5_pSol*);
+      break;
+    case(MMG5_ARG_ppSols):
+      sols = va_arg(argptr,MMG5_pSol*);
       break;
     default:
       fprintf(stderr,"\n  ## Error: %s: MMGS_Free_names:\n"
@@ -479,6 +497,19 @@ int MMGS_Free_names_var(va_list argptr)
       MMG5_DEL_MEM(*mesh,(*ls)->nameout);
     }
   }
+  /* Fields */
+  if ( sols ) {
+    for ( i=0; i<(*mesh)->nsols; ++i ) {
+      psl = (*sols) + i;
+      if ( psl->namein ) {
+        MMG5_DEL_MEM(*mesh,psl->namein);
+      }
+      if ( psl->nameout ) {
+        MMG5_DEL_MEM(*mesh,psl->nameout);
+      }
+    }
+  }
+
 
   return 1;
 }

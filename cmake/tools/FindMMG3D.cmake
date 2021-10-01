@@ -55,7 +55,7 @@ set(ENV_MMG_BUILDDIR "$ENV{MMG_BUILDDIR}")
 
 if ( NOT MMG_BUILDDIR )
   FIND_PATH(MMG_BUILDDIR_INTERNAL
-    NAMES src/common/mmgcommon.h
+    NAMES src/common/mmgcmakedefines.h
     HINTS ${ENV_MMG_BUILDDIR} ${MMG_DIR} ${ENV_MMG_DIR}
     PATH_SUFFIXES build Build BUILD builds Builds BUILDS
     DOC "The mmg build directory"
@@ -122,7 +122,7 @@ if(MMG_INCDIR)
   find_path(MMG3D_libmmgtypes.h_DIRS
     NAMES libmmgtypes.h
     HINTS ${MMG_INCDIR}
-    PATH_SUFFIXES "mmg3d")
+    PATH_SUFFIXES "mmg/mmg3d" "mmg3d")
 elseif(MMG_BUILDDIR)
   set(MMG3D_libmmgtypes.h_DIRS "MMG3D_libmmgtypes.h_DIRS-NOTFOUND")
   find_path(MMG3D_libmmgtypes.h_DIRS

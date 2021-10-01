@@ -70,7 +70,9 @@ enum MMGS_Param {
   MMGS_IPARAM_nomove,            /*!< [1/0], Avoid/allow point relocation */
   MMGS_IPARAM_nreg,              /*!< [0/1], Disabled/enabled normal regularization */
   MMGS_IPARAM_numberOfLocalParam,/*!< [n], Number of local parameters */
+  MMGS_IPARAM_numsubdomain,      /*!< [0/n], Save the subdomain nb (0==all subdomain) */
   MMGS_IPARAM_renum,             /*!< [1/0], Turn on/off point relocation with Scotch */
+  MMGS_IPARAM_anisosize,        /*!< [1/0], Turn on/off anisotropic metric creation when no metric is provided */
   MMGS_IPARAM_nosizreq,          /*!< [0/1], Allow/avoid overwritten of sizes at required points (advanced usage) */
   MMGS_DPARAM_angleDetection,    /*!< [val], Value for angle detection */
   MMGS_DPARAM_hmin,              /*!< [val], Minimal mesh size */
@@ -617,6 +619,24 @@ int  MMGS_Set_requiredEdge(MMG5_pMesh mesh, int k);
 int  MMGS_Set_normalAtVertex(MMG5_pMesh mesh, int k, double n0, double n1, double n2) ;
 
 /**
+ * \param mesh pointer toward the mesh structure.
+ * \param met pointer toward the metric structure.
+ * \param k index of the triangle for which we want to get the quality.
+ * \return the computed quality or 0. if fail.
+ *
+ * Get quality of tria \a k.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMGS_GET_TRIANGLEQUALITY(mesh,met,k,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh,met\n
+ * >     INTEGER, INTENT(IN)           :: k\n
+ * >     REAL(KIND=8), INTENT(OUT)     :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  double MMGS_Get_triangleQuality(MMG5_pMesh mesh,MMG5_pSol met, int k);
+
+/**
  * \param met pointer toward the sol structure.
  * \param s solution scalar value.
  * \param pos position of the solution in the mesh.
@@ -947,6 +967,32 @@ int  MMGS_Get_solSize(MMG5_pMesh mesh, MMG5_pSol sol, int* typEntity, int* np,
  */
 int  MMGS_Get_vertex(MMG5_pMesh mesh, double* c0, double* c1, double* c2, int* ref,
                      int* isCorner, int* isRequired);
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param c0 pointer toward the coordinate of the point along the first dimension.
+ * \param c1 pointer toward the coordinate of the point along the second dimension.
+ * \param c2 pointer toward the coordinate of the point along the third dimension.
+ * \param ref pointer to the point reference.
+ * \param isCorner pointer toward the flag saying if point is corner.
+ * \param isRequired pointer toward the flag saying if point is required.
+ * \param idx index of point to get.
+ * \return 1.
+ *
+ * Get coordinates \a c0, \a c1, \a c2 and reference \a ref of
+ * vertex \a idx of mesh.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMGS_GETBYIDX_VERTEX(mesh,c0,c1,c2,ref,isCorner,isRequired,idx,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh\n
+ * >     REAL(KIND=8), INTENT(OUT)     :: c0,c1,c2\n
+ * >     INTEGER                       :: ref,isCorner,isRequired,idx\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+ int  MMGS_GetByIdx_vertex(MMG5_pMesh mesh, double* c0, double* c1, double* c2, int* ref,
+                           int* isCorner, int* isRequired,int idx);
+
 /**
  * \param mesh pointer toward the mesh structure.
  * \param vertices pointer toward the table of the points coordinates.
@@ -1646,6 +1692,22 @@ int  MMGS_saveSol(MMG5_pMesh mesh, MMG5_pSol met, const char *filename);
  */
 int MMGS_saveAllSols(MMG5_pMesh  mesh,MMG5_pSol *sol ,const char *filename);
 
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param sol pointer toward an array of solution structure (that stores solution fields).
+ * \return 1
+ *
+ * Deallocation of an array of solution fields
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMGS_Free_allSols(mesh,sol,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh,sol\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+int MMGS_Free_allSols(MMG5_pMesh mesh,MMG5_pSol *sol);
+
 /* deallocations */
 /**
  * \param starter dummy argument used to initialize the variadic argument list.
@@ -1791,6 +1853,56 @@ int  MMGS_mmgsls(MMG5_pMesh mesh,  MMG5_pSol sol,MMG5_pSol met);
  *
  */
 void  MMGS_setfunc(MMG5_pMesh mesh,MMG5_pSol met);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param nb_edges pointer toward the number of non boundary edges.
+ * \return 0 if failed, 1 otherwise.
+ *
+ * Get the number of non boundary edges (for DG methods for example). An edge is
+ * boundary if it is located at the interface of 2 domains with different
+ * references, if it belongs to one triangle only or if it is a singular edge
+ * (ridge or required).
+ * Append these edges to the list of edge.
+ *
+ * \warning reallocate the edge array and append the internal edges. This may
+ * modify the behaviour of other functions.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMGS_GET_NUMBEROFNONBDYEDGES(mesh,nb_edges,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh\n
+ * >     INTEGER, INTENT(OUT)          :: nb_edges\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int MMGS_Get_numberOfNonBdyEdges(MMG5_pMesh mesh, int* nb_edges);
+
+/**
+ * \param mesh pointer toward the mesh structure.
+ * \param e0 pointer toward the first extremity of the edge.
+ * \param e1 pointer toward the second  extremity of the edge.
+ * \param ref pointer toward the edge reference.
+ * \param idx index of the non boundary edge to get (between 1 and nb_edges)
+ * \return 0 if failed, 1 otherwise.
+ *
+ * Get extremities \a e0, \a e1 and reference \a ref of the idx^th non boundary
+ * edge (for DG methods for example). An edge is boundary if it is located at
+ * the interface of 2 domains witch different references, if it belongs to one
+ * triangle only or if it is a singular edge (ridge or required).
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMGS_GET_NONBDYEDGE(mesh,e0,e1,ref,idx,retval)\n
+ * >     MMG5_DATA_PTR_T,INTENT(INOUT) :: mesh\n
+ * >     INTEGER, INTENT(OUT)          :: e0,e1\n
+ * >     INTEGER                       :: ref\n
+ * >     INTEGER, INTENT(IN)           :: idx\n
+ * >     INTEGER, INTENT(OUT)          :: retval\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  int MMGS_Get_nonBdyEdge(MMG5_pMesh mesh, int* e0, int* e1, int* ref, int idx);
+
 
 /* Tools for the library */
 /**
@@ -1971,7 +2083,19 @@ int MMGS_Get_adjaVerticesFast(MMG5_pMesh mesh, int ip,int start, int lispoi[MMGS
  */
 int MMGS_Compute_eigenv(double m[6],double lambda[3],double vp[3][3]);
 
-
+/**
+ * \param mesh pointer toward the mesh structure
+ * \param sol pointer toward the solution structure
+ *
+ * Free the solution.
+ *
+ * \remark Fortran interface:
+ * >   SUBROUTINE MMGS_FREE_SOLUTIONS(mesh,sol)\n
+ * >     MMG5_DATA_PTR_T, INTENT(INOUT) :: mesh,sol\n
+ * >   END SUBROUTINE\n
+ *
+ */
+  void MMGS_Free_solutions(MMG5_pMesh mesh,MMG5_pSol sol);
 
 #ifdef __cplusplus
 }

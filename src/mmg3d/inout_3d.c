@@ -35,11 +35,30 @@
 
 #include "mmg3d.h"
 
-int MMG3D_openMesh(MMG5_pMesh mesh,const char *filename,FILE **inm,int *bin) {
-  char        *ptr,*data;
+/**
+ * \param imprim verbosity level (muted for stdout if -1)
+ * \param filename file to open
+ * \param inm pointer toward the file unit
+ * \param bin 1 if file will be at binary format
+ * \param modeASCII mode in which to open an ascii file ("r","r+","w","w+",...)
+ * \param modeASCII mode in which to open an ascii file ("r","r+","w","w+",...)
+ *
+ * \return -1 if lack of memory, 0 if fail to open file, 1 if success.
+ *
+ * Try to open a Medit file at asked mode (read only, write, etc) and store if
+ * file is binary (depending on the extension).
+ *
+ */
+int MMG3D_openMesh(int imprim,const char *filename,FILE **inm,int *bin,
+                   char *modeASCII, char* modeBIN) {
+  char *ptr,*data;
+  int   out,ier;
+
+  out = (strchr(modeASCII,'w') != NULL) ? 1 : 0;
+  ier = out ? 0 : -1;
 
   *bin = 0;
-  MMG5_SAFE_CALLOC(data,strlen(filename)+7,char,return -1);
+  MMG5_SAFE_CALLOC(data,strlen(filename)+7,char,return ier);
 
   strcpy(data,filename);
   ptr = strstr(data,".mesh");
@@ -47,12 +66,12 @@ int MMG3D_openMesh(MMG5_pMesh mesh,const char *filename,FILE **inm,int *bin) {
   if ( !ptr ) {
     /* data contains the filename without extension */
     strcat(data,".meshb");
-    if( !(*inm = fopen(data,"rb")) ) {
+    if( !(*inm = fopen(data,modeBIN)) ) {
       /* our file is not a .meshb file, try with .mesh ext */
       ptr = strstr(data,".mesh");
       *ptr = '\0';
       strcat(data,".mesh");
-      if( !(*inm = fopen(data,"rb")) ) {
+      if( !(*inm = fopen(data,modeASCII)) ) {
         MMG5_SAFE_FREE(data);
         return 0;
       }
@@ -61,14 +80,28 @@ int MMG3D_openMesh(MMG5_pMesh mesh,const char *filename,FILE **inm,int *bin) {
   }
   else {
     ptr = strstr(data,".meshb");
-    if ( ptr )  *bin = 1;
-    if( !(*inm = fopen(data,"rb")) ) {
-      MMG5_SAFE_FREE(data);
-      return 0;
+    if ( ptr ) {
+      *bin = 1;
+      if( !(*inm = fopen(data,modeBIN)) ) {
+        if ( out ) {
+          fprintf(stderr,"  ** UNABLE TO OPEN %s.\n",data);
+        }
+        MMG5_SAFE_FREE(data);
+        return 0;
+      }
+    }
+    else {
+      if( !(*inm = fopen(data,modeASCII)) ) {
+        if ( out ) {
+          fprintf(stderr,"  ** UNABLE TO OPEN %s.\n",data);
+        }
+        MMG5_SAFE_FREE(data);
+        return 0;
+      }
     }
   }
 
-  if ( mesh->info.imprim >= 0 ) {
+  if ( imprim >= 0 ) {
     fprintf(stdout,"  %%%% %s OPENED\n",data);
   }
   MMG5_SAFE_FREE(data);
@@ -87,7 +120,9 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
   float       fc;
   long        posnp,posnt,posne,posned,posncor,posnpreq,posntreq,posnereq,posnedreq;
   long        posnr,posnprism,posnormal,posnc1,posnq,posnqreq;
+  long        posnppar,posntpar,posnepar,posnedpar,posnqpar;
   int         npreq,ntreq,nereq,nedreq,nqreq,ncor,ned,ng,iswp;
+  int         nppar,nedpar,ntpar,nqpar,nepar;
   int         binch,bdim,bpos,i,k,ip,idn;
   int         *ina,v[3],ref,nt,na,nr,ia,aux,nref;
   char        chaine[MMG5_FILESTR_LGTH],strskip[MMG5_FILESTR_LGTH];
@@ -95,7 +130,9 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
   posnp = posnt = posne = posncor = 0;
   posnpreq = posntreq = posnereq = posnqreq = posned = posnedreq = posnr = 0;
   posnprism = posnormal= posnc1 = posnq = 0;
+  posnppar = posnedpar = posntpar = posnqpar = posnepar = 0;
   ncor = ned = npreq = ntreq = nqreq = nereq = nedreq = nr = ng = 0;
+  nppar = nedpar = ntpar = nqpar = nepar = 0;
   iswp = 0;
   ina = NULL;
   mesh->np = mesh->nt = mesh->ne = 0;
@@ -128,6 +165,10 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
         MMG_FSCANF(inm,"%d",&npreq);
         posnpreq = ftell(inm);
         continue;
+      } else if(!strncmp(chaine,"ParallelVertices",strlen("ParallelVertices"))) {
+        MMG_FSCANF(inm,"%d",&nppar);
+        posnppar = ftell(inm);
+        continue;
       } else if(!strncmp(chaine,"Triangles",strlen("Triangles"))) {
         if ( !strncmp(chaine,"TrianglesP",strlen("TrianglesP")) ) continue;
         MMG_FSCANF(inm,"%d",&mesh->nti);
@@ -136,6 +177,10 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
       } else if(!strncmp(chaine,"RequiredTriangles",strlen("RequiredTriangles"))) {
         MMG_FSCANF(inm,"%d",&ntreq);
         posntreq = ftell(inm);
+        continue;
+      } else if(!strncmp(chaine,"ParallelTriangles",strlen("ParallelTriangles"))) {
+        MMG_FSCANF(inm,"%d",&ntpar);
+        posntpar = ftell(inm);
         continue;
       }
       else if(!strncmp(chaine,"Quadrilaterals",strlen("Quadrilaterals"))) {
@@ -146,7 +191,10 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
         MMG_FSCANF(inm,"%d",&nqreq);
         posnqreq = ftell(inm);
         continue;
-
+      } else if(!strncmp(chaine,"ParallelQuadrilaterals",strlen("ParallelQuadrilaterals"))) {
+        MMG_FSCANF(inm,"%d",&nqpar);
+        posnqpar = ftell(inm);
+        continue;
       } else if(!strncmp(chaine,"Tetrahedra",strlen("Tetrahedra"))) {
         if ( !strncmp(chaine,"TetrahedraP",strlen("TetrahedraP")) ) continue;
         MMG_FSCANF(inm,"%d",&mesh->nei);
@@ -161,6 +209,10 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
         MMG_FSCANF(inm,"%d",&nereq);
         posnereq = ftell(inm);
         continue;
+      } else if(!strncmp(chaine,"ParallelTetrahedra",strlen("ParallelTetrahedra"))) {
+        MMG_FSCANF(inm,"%d",&nepar);
+        posnepar = ftell(inm);
+        continue;
       } else if(!strncmp(chaine,"Corners",strlen("Corners"))) {
         MMG_FSCANF(inm,"%d",&ncor);
         posncor = ftell(inm);
@@ -172,6 +224,10 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
       } else if(!strncmp(chaine,"RequiredEdges",strlen("RequiredEdges"))) {
         MMG_FSCANF(inm,"%d",&nedreq);
         posnedreq = ftell(inm);
+        continue;
+      } else if(!strncmp(chaine,"ParallelEdges",strlen("ParallelEdges"))) {
+        MMG_FSCANF(inm,"%d",&nedpar);
+        posnedpar = ftell(inm);
         continue;
       } else if(!strncmp(chaine,"Ridges",strlen("Ridges"))) {
         MMG_FSCANF(inm,"%d",&nr);
@@ -435,9 +491,32 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
       } else {
         ppt = &mesh->point[i];
         ppt->tag |= MG_REQ;
+        ppt->tag &= ~MG_NUL;
       }
     }
   }
+  /* get parallel vertices */
+  if(nppar) {
+    rewind(inm);
+    fseek(inm,posnppar,SEEK_SET);
+    for (k=1; k<=nppar; k++) {
+      if(!bin) {
+        MMG_FSCANF(inm,"%d",&i);
+      }
+      else {
+        MMG_FREAD(&i,MMG5_SW,1,inm);
+        if(iswp) i=MMG5_swapbin(i);
+      }
+      if(i>mesh->np) {
+        fprintf(stderr,"\n  ## Warning: %s: parallel Vertices number %8d"
+                " ignored.\n",__func__,i);
+      } else {
+        ppt = &mesh->point[i];
+        ppt->tag |= MG_PARBDY;
+      }
+    }
+  }
+
 
   /* get corners */
   if(ncor) {
@@ -568,6 +647,40 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
         }
       }
     }
+    /* get parallel triangles */
+    if(ntpar) {
+      rewind(inm);
+      fseek(inm,posntpar,SEEK_SET);
+      for (k=1; k<=ntpar; k++) {
+        if(!bin) {
+          MMG_FSCANF(inm,"%d",&i);
+        }
+        else {
+          MMG_FREAD(&i,MMG5_SW,1,inm);
+          if(iswp) i=MMG5_swapbin(i);
+        }
+        if ( i>mesh->nt ) {
+          fprintf(stderr,"\n  ## Warning: %s: parallel triangle number %8d"
+                  " ignored.\n",__func__,i);
+        } else {
+          if( mesh->info.iso ){
+            if( ina[i] == 0 ) continue;
+            else {
+              pt1 = &mesh->tria[ina[i]];
+              pt1->tag[0] |= MG_PARBDY;
+              pt1->tag[1] |= MG_PARBDY;
+              pt1->tag[2] |= MG_PARBDY;
+            }
+          }
+          else{
+            pt1 = &mesh->tria[i];
+            pt1->tag[0] |= MG_PARBDY;
+            pt1->tag[1] |= MG_PARBDY;
+            pt1->tag[2] |= MG_PARBDY;
+          }
+        }
+      }
+    }
     if ( mesh->info.iso )
       MMG5_SAFE_FREE(ina);
   } //end if mesh->nt
@@ -618,6 +731,31 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
           pq1->tag[1] |= MG_REQ;
           pq1->tag[2] |= MG_REQ;
           pq1->tag[3] |= MG_REQ;
+        }
+      }
+    }
+
+    /* get parallel quadrilaterals */
+    if(nqpar) {
+      rewind(inm);
+      fseek(inm,posnqpar,SEEK_SET);
+      for (k=1; k<=nqpar; k++) {
+        if(!bin) {
+          MMG_FSCANF(inm,"%d",&i);
+        }
+        else {
+          MMG_FREAD(&i,MMG5_SW,1,inm);
+          if(iswp) i=MMG5_swapbin(i);
+        }
+        if ( i>mesh->nquad ) {
+          fprintf(stderr,"\n  ## Warning: %s: parallel quadrilaterals number"
+                  " %8d ignored.\n",__func__,i);
+        } else {
+          pq1 = &mesh->quadra[i];
+          pq1->tag[0] |= MG_PARBDY;
+          pq1->tag[1] |= MG_PARBDY;
+          pq1->tag[2] |= MG_PARBDY;
+          pq1->tag[3] |= MG_PARBDY;
         }
       }
     }
@@ -689,7 +827,6 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
       }
     }
 
-
     /* get ridges */
     if ( nr ) {
       rewind(inm);
@@ -752,6 +889,37 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
 
       }
     }
+    /* get parallel edges */
+    if ( nedpar ) {
+      rewind(inm);
+      fseek(inm,posnedpar,SEEK_SET);
+      for (k=1; k<=nedpar; k++) {
+        if(!bin) {
+          MMG_FSCANF(inm,"%d",&ia);
+        }
+        else {
+          MMG_FREAD(&ia,MMG5_SW,1,inm);
+          if(iswp) ia=MMG5_swapbin(ia);
+        }
+        if(ia>na) {
+          fprintf(stderr,"\n  ## Warning: %s: parallel Edges number %8d/%8d"
+                  " ignored.\n",__func__,ia,na);
+          continue;
+        }
+        if( mesh->info.iso ){
+          if( ina[ia] == 0 ) continue;
+          else {
+            pa = &mesh->edge[ina[ia]];
+            pa->tag |= MG_PARBDY;
+          }
+        }
+        else{
+          pa = &mesh->edge[ia];
+          pa->tag |= MG_PARBDY;
+        }
+
+      }
+    }
     if (mesh->info.iso )
       MMG5_SAFE_FREE(ina);
   }
@@ -781,8 +949,6 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
       ppt = &mesh->point[pt->v[i]];
       ppt->tag &= ~MG_NUL;
     }
-
-    if ( mesh->info.iso )  pt->ref = 0;
 
     /* Possibly switch 2 vertices number so that each tet is positively oriented */
     if ( MMG5_orvol(mesh->point,pt->v) < 0.0 ) {
@@ -818,6 +984,27 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
       }
       pt = &mesh->tetra[i];
       pt->tag |= MG_REQ;
+    }
+  }
+  /* get parallel tetrahedra */
+  if(nepar) {
+    rewind(inm);
+    fseek(inm,posnepar,SEEK_SET);
+    for (k=1; k<=nepar; k++) {
+      if(!bin) {
+        MMG_FSCANF(inm,"%d",&i);
+      }
+      else {
+        MMG_FREAD(&i,MMG5_SW,1,inm);
+        if(iswp) i=MMG5_swapbin(i);
+      }
+      if(i>mesh->ne) {
+        fprintf(stderr,"\n  ## Warning: %s: parallel Tetra number %8d"
+                " ignored.\n",__func__,i);
+        continue;
+      }
+      pt = &mesh->tetra[i];
+      pt->tag |= MG_PARBDY;
     }
   }
   /* read mesh prisms */
@@ -968,6 +1155,20 @@ int MMG3D_loadMesh_opened(MMG5_pMesh mesh,FILE *inm,int bin) {
         fprintf(stdout,"                  TETRAHEDRA    %8d \n",nereq);
     }
     if(ncor) fprintf(stdout,"     NUMBER OF CORNERS        %8d \n",ncor);
+
+    if ( nppar || nedpar || ntpar || nepar || nqpar ) {
+      fprintf(stdout,"     NUMBER OF PARALLEL ENTITIES: \n");
+      if ( nppar )
+        fprintf(stdout,"                  VERTICES       %8d \n",nppar);
+      if ( nedpar )
+        fprintf(stdout,"                  EDGES          %8d \n",nedpar);
+      if ( ntpar )
+        fprintf(stdout,"                  TRIANGLES      %8d \n",ntpar);
+      if ( nqpar )
+        fprintf(stdout,"                  QUADRILATERALS %8d \n",nqpar);
+      if ( nepar )
+        fprintf(stdout,"                  TETRAHEDRA    %8d \n",nepar);
+    }
   }
 
   return 1;
@@ -987,7 +1188,7 @@ int MMG3D_loadMesh(MMG5_pMesh mesh,const char *filename) {
   FILE*       inm;
   int         bin,ier;
 
-  ier = MMG3D_openMesh(mesh,filename,&inm,&bin);
+  ier = MMG3D_openMesh(mesh->info.imprim,filename,&inm,&bin,"rb","rb");
   if( ier < 1 ) return ier;
   ier = MMG3D_loadMesh_opened(mesh,inm,bin);
   if( ier < 1 ) return ier;
@@ -1128,53 +1329,17 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
   MMG5_pTria   ptt;
   MMG5_pQuad   pq;
   MMG5_xPoint *pxp;
-  int          k,na,nc,np,ne,nn,nr,nre,nedreq,ntreq,nt,nereq;
-  int          npr,nprreq,nq,nqreq;
+  int          k,na,nc,np,ne,nn,nr,nre,npar,nedreq,nedpar,ntreq,ntpar,nt,nereq,nepar;
+  int          npr,nq,nqreq,nqpar;
   int          bin,binch,bpos;
-  char         *data,*ptr;
   char         chaine[MMG5_FILESTR_LGTH];
+  static int8_t parWarn = 0;
 
   mesh->ver = 2;
-  bin = 0;
 
-  MMG5_SAFE_CALLOC(data,strlen(filename)+7,char,return 0);
-
-  strcpy(data,filename);
-  ptr = strstr(data,".mesh");
-  if ( !ptr ) {
-    strcat(data,".meshb");
-    if( !(inm = fopen(data,"wb")) ) {
-      ptr  = strstr(data,".mesh");
-      *ptr = '\0';
-      strcat(data,".mesh");
-      if( !(inm = fopen(data,"w")) ) {
-        MMG5_SAFE_FREE(data);
-        return 0;
-      }
-    } else {
-      bin = 1;
-    }
+  if ( !MMG3D_openMesh(mesh->info.imprim,filename,&inm,&bin,"w","wb") ) {
+    return 0;
   }
-  else {
-    ptr = strstr(data,".meshb");
-    if( ptr ) {
-      bin = 1;
-      if( !(inm = fopen(data,"wb")) ) {
-        fprintf(stderr,"  ** UNABLE TO OPEN %s.\n",data);
-        MMG5_SAFE_FREE(data);
-        return 0;
-      }
-    } else {
-      if( !(inm = fopen(data,"w")) ) {
-        fprintf(stderr,"  ** UNABLE TO OPEN %s.\n",data);
-        MMG5_SAFE_FREE(data);
-        return 0;
-      }
-    }
-  }
-  if ( mesh->info.imprim >= 0 )
-    fprintf(stdout,"  %%%% %s OPENED\n",data);
-  MMG5_SAFE_FREE(data);
 
   /*entete fichier*/
   binch=0; bpos=10;
@@ -1197,7 +1362,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
 
   }
   /* vertices */
-  np = nc = na = nr = nre = 0;
+  np = nc = na = nr = nre = npar = 0;
 
   if ( !mesh->point ) {
     fprintf(stderr, "\n  ## Error: %s: points array not allocated.\n",
@@ -1214,6 +1379,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       ppt->flag = 0;
       if ( ppt->tag & MG_CRN )  nc++;
       if ( ppt->tag & MG_REQ )  nre++;
+      if ( ppt->tag & MG_PARBDY )  npar++;
     }
   }
 
@@ -1224,7 +1390,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
   } else {
     binch = 4; //Vertices
     fwrite(&binch,MMG5_SW,1,inm);
-    bpos += 12+(1+3*mesh->ver)*4*np; //NullPos
+    bpos += (3+(1+3*mesh->ver)*np)*MMG5_SW; //NullPos
     fwrite(&bpos,MMG5_SW,1,inm);
     fwrite(&np,MMG5_SW,1,inm);
   }
@@ -1252,7 +1418,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     } else {
       binch = 13; //
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12+4*nc; //NullPos
+      bpos += (3+nc)*MMG5_SW; //NullPos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite(&nc,MMG5_SW,1,inm);
     }
@@ -1276,7 +1442,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     } else {
       binch = 15; //
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12+4*nre; //NullPos
+      bpos += (3+nre)*MMG5_SW; //NullPos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite(&nre,MMG5_SW,1,inm);
     }
@@ -1291,9 +1457,33 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       }
     }
   }
+  if ( npar ) {
+    if(!bin) {
+      strcpy(&chaine[0],"\n\nParallelVertices\n");
+      fprintf(inm,"%s",chaine);
+      fprintf(inm,"%d\n",npar);
+    }
+    else {
+      if ( !parWarn ) {
+        parWarn = 1;
+        fprintf(stderr, "\n  ## Warning: %s: parallel entities can't be"
+                " saved at binary format. Ignored.\n",
+                __func__);
+
+      }
+    }
+    for (k=1; k<=mesh->np; k++) {
+      ppt = &mesh->point[k];
+      if ( MG_VOK(ppt) && ppt->tag & MG_PARBDY ) {
+        if(!bin) {
+          fprintf(inm,"%d\n",ppt->tmp);
+        }
+      }
+    }
+  }
 
   /* tetrahedra */
-  ne = nereq = 0;
+  ne = nereq = nepar = 0;
   if ( mesh->tetra ) {
     for (k=1; k<=mesh->ne; k++) {
       pt = &mesh->tetra[k];
@@ -1303,6 +1493,9 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       ne++;
       if ( pt->tag & MG_REQ ){
         nereq++;
+      }
+      if ( pt->tag & MG_PARBDY ){
+        nepar++;
       }
     }
   }
@@ -1318,7 +1511,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
   } else {
     binch = 8; //Tetra
     fwrite(&binch,MMG5_SW,1,inm);
-    bpos += 12 + 20*ne;//Pos
+    bpos += (3 + 5*ne)*MMG5_SW;//Pos
     fwrite(&bpos,MMG5_SW,1,inm);
     fwrite((unsigned char*)&ne,MMG5_SW,1,inm);
   }
@@ -1355,7 +1548,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     } else {
       binch = 12; //RequiredTetra
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12 + 4*nereq;//Pos
+      bpos += (3 + nereq)*MMG5_SW;//Pos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite(&nereq,MMG5_SW,1,inm);
     }
@@ -1374,15 +1567,39 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     }
   }
 
+  if ( nepar ) {
+    if(!bin) {
+      strcpy(&chaine[0],"\n\nParallelTetrahedra\n");
+      fprintf(inm,"%s",chaine);
+      fprintf(inm,"%d\n",nepar);
+    } else {
+      if ( !parWarn ) {
+        parWarn = 1;
+        fprintf(stderr, "\n  ## Warning: %s: parallel entities can't be"
+                " saved at binary format. Ignored.\n",
+                __func__);
+
+      }
+    }
+    ne = 0;
+    for (k=1; k<=mesh->ne; k++) {
+      pt = &mesh->tetra[k];
+      if ( !MG_EOK(pt) ) continue;
+      ne++;
+      if ( pt->tag & MG_PARBDY ) {
+        if(!bin) {
+          fprintf(inm,"%d\n",ne);
+        }
+      }
+    }
+  }
+
   /* prisms */
-  npr = nprreq = 0;
+  npr = 0;
   for (k=1; k<=mesh->nprism; k++) {
     pp = &mesh->prism[k];
     if ( !MG_EOK(pp) ) continue;
     npr++;
-    if ( pp->tag & MG_REQ ){
-      nprreq++;
-    }
   }
 
   if ( npr ) {
@@ -1393,7 +1610,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     } else {
       binch = 9; //Prism
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12 + 20*npr;//Pos
+      bpos += (3 + 7*npr)*MMG5_SW;//Pos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite((unsigned char*)&npr,MMG5_SW,1,inm);
     }
@@ -1438,7 +1655,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       fprintf(inm,"%d\n",nn);
     } else {      binch = 60; //normals
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12+(3*mesh->ver)*4*nn; //Pos
+      bpos += (3+(3*mesh->ver)*nn)*MMG5_SW; //Pos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite(&nn,MMG5_SW,1,inm);
     }
@@ -1466,7 +1683,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     } else {
       binch = 20; //normalatvertices
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12 + 2*4*nn;//Pos
+      bpos += (3 + 2*nn)*MMG5_SW;//Pos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite(&nn,MMG5_SW,1,inm);
     }
@@ -1495,7 +1712,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       } else {
         binch = 59; //tangent
         fwrite(&binch,MMG5_SW,1,inm);
-        bpos += 12+(3*mesh->ver)*4*nt; //Pos
+        bpos += (3+(3*mesh->ver)*nt)*MMG5_SW; //Pos
         fwrite(&bpos,MMG5_SW,1,inm);
         fwrite(&nt,MMG5_SW,1,inm);
       }
@@ -1522,7 +1739,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       } else {
         binch = 61; //tangentatvertices
         fwrite(&binch,MMG5_SW,1,inm);
-        bpos += 12 + 2*4*nt;//Pos
+        bpos += (3 + 2*nt)*MMG5_SW;//Pos
         fwrite(&bpos,MMG5_SW,1,inm);
         fwrite(&nt,MMG5_SW,1,inm);
       }
@@ -1545,7 +1762,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
 
   /* boundary mesh */
   /* tria + required tria */
-  ntreq = 0;
+  ntreq = ntpar = 0;
 
   if ( mesh->nt ) {
     if(!bin) {
@@ -1555,7 +1772,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     } else {
       binch = 6; //Triangles
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12+16*mesh->nt; //Pos
+      bpos += (3+4*mesh->nt)*MMG5_SW; //Pos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite(&mesh->nt,MMG5_SW,1,inm);
     }
@@ -1563,6 +1780,9 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       ptt = &mesh->tria[k];
       if ( ptt->tag[0] & MG_REQ && ptt->tag[1] & MG_REQ && ptt->tag[2] & MG_REQ ) {
         ntreq++;
+      }
+      if ( ptt->tag[0] & MG_PARBDY && ptt->tag[1] & MG_PARBDY && ptt->tag[2] & MG_PARBDY ) {
+        ntpar++;
       }
       if(!bin) {
         fprintf(inm,"%d %d %d %d\n",mesh->point[ptt->v[0]].tmp,mesh->point[ptt->v[1]].tmp
@@ -1582,7 +1802,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       } else {
         binch = 17; //ReqTriangles
         fwrite(&binch,MMG5_SW,1,inm);
-        bpos += 12+4*ntreq; //Pos
+        bpos += (3+ntreq)*MMG5_SW; //Pos
         fwrite(&bpos,MMG5_SW,1,inm);
         fwrite(&ntreq,MMG5_SW,1,inm);
       }
@@ -1598,10 +1818,33 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
         }
       }
     }
+    if ( ntpar ) {
+      if(!bin) {
+        strcpy(&chaine[0],"\n\nParallelTriangles\n");
+        fprintf(inm,"%s",chaine);
+        fprintf(inm,"%d\n",ntpar);
+      } else {
+        if ( !parWarn ) {
+          parWarn = 1;
+          fprintf(stderr, "\n  ## Warning: %s: parallel entities can't be"
+                  " saved at binary format. Ignored.\n",
+                  __func__);
+        }
+      }
+      for (k=0; k<=mesh->nt; k++) {
+        ptt = &mesh->tria[k];
+        if ( (ptt->tag[0] & MG_PARBDY) && (ptt->tag[1] & MG_PARBDY)
+             && ptt->tag[2] & MG_PARBDY ) {
+          if(!bin) {
+            fprintf(inm,"%d\n",k);
+          }
+        }
+      }
+    }
   }
 
   /* quad + required quad */
-  nq = nqreq = 0;
+  nq = nqreq = nqpar = 0;
 
   if ( mesh->nquad ) {
 
@@ -1615,6 +1858,10 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
            pq->tag[2] & MG_REQ && pq->tag[3] & MG_REQ ) {
         nqreq++;
       }
+      if ( pq->tag[0] & MG_PARBDY && pq->tag[1] & MG_PARBDY &&
+           pq->tag[2] & MG_PARBDY && pq->tag[3] & MG_PARBDY ) {
+        nqpar++;
+      }
     }
   }
 
@@ -1626,7 +1873,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     } else {
       binch = 7; //Quadrilaterals
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12+20*nq; //Pos
+      bpos += (3+5*nq)*MMG5_SW; //Pos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite(&nq,MMG5_SW,1,inm);
     }
@@ -1654,7 +1901,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       } else {
         binch = 18; //ReqQuad
         fwrite(&binch,MMG5_SW,1,inm);
-        bpos += 12+4*nqreq; //Pos
+        bpos += (3+nqreq)*MMG5_SW; //Pos
         fwrite(&bpos,MMG5_SW,1,inm);
         fwrite(&nqreq,MMG5_SW,1,inm);
       }
@@ -1670,9 +1917,32 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
         }
       }
     }
+    if ( nqpar ) {
+      if(!bin) {
+        strcpy(&chaine[0],"\n\nParallelQuadrilaterals\n");
+        fprintf(inm,"%s",chaine);
+        fprintf(inm,"%d\n",nqpar);
+      } else {
+        if ( !parWarn ) {
+          parWarn = 1;
+          fprintf(stderr, "\n  ## Warning: %s: parallel entities can't be"
+                  " saved at binary format. Ignored.\n",
+                  __func__);
+        }
+      }
+      for (k=0; k<=mesh->nquad; k++) {
+        pq = &mesh->quadra[k];
+        if ( (pq->tag[0] & MG_PARBDY) && (pq->tag[1] & MG_PARBDY) &&
+             pq->tag[2] & MG_PARBDY && pq->tag[3] & MG_PARBDY ) {
+          if(!bin) {
+            fprintf(inm,"%d\n",k);
+          }
+        }
+      }
+    }
   }
 
-  nr = nedreq = 0;
+  nr = nedreq = nedpar = 0;
   if ( mesh->na ) {
     if(!bin) {
       strcpy(&chaine[0],"\n\nEdges\n");
@@ -1681,7 +1951,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
     } else {
       binch = 5; //Edges
       fwrite(&binch,MMG5_SW,1,inm);
-      bpos += 12 + 3*4*mesh->na;//Pos
+      bpos += (3 + 3*mesh->na)*MMG5_SW;//Pos
       fwrite(&bpos,MMG5_SW,1,inm);
       fwrite(&mesh->na,MMG5_SW,1,inm);
     }
@@ -1696,6 +1966,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       }
       if ( mesh->edge[k].tag & MG_GEO ) nr++;
       if ( mesh->edge[k].tag & MG_REQ ) nedreq++;
+      if ( mesh->edge[k].tag & MG_PARBDY ) nedpar++;
     }
 
     if ( nr ) {
@@ -1706,7 +1977,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       } else {
         binch = 14; //Ridges
         fwrite(&binch,MMG5_SW,1,inm);
-        bpos += 12 + 4*nr;//Pos
+        bpos += (3 + nr)*MMG5_SW;//Pos
         fwrite(&bpos,MMG5_SW,1,inm);
         fwrite(&nr,MMG5_SW,1,inm);
       }
@@ -1731,7 +2002,7 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       } else {
         binch = 16; //RequiredEdges
         fwrite(&binch,MMG5_SW,1,inm);
-        bpos += 12 + 4*nedreq;//Pos
+        bpos += (3 + nedreq)*MMG5_SW;//Pos
         fwrite(&bpos,MMG5_SW,1,inm);
         fwrite(&nedreq,MMG5_SW,1,inm);
       }
@@ -1743,6 +2014,29 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
             fprintf(inm,"%d\n",na);
           } else {
             fwrite(&na,MMG5_SW,1,inm);
+          }
+        }
+      }
+    }
+    if ( nedpar ) {
+      if(!bin) {
+        strcpy(&chaine[0],"\n\nParallelEdges\n");
+        fprintf(inm,"%s",chaine);
+        fprintf(inm,"%d\n",nedpar);
+      } else {
+        if ( !parWarn ) {
+          parWarn = 1;
+          fprintf(stderr, "\n  ## Warning: %s: parallel entities can't be"
+                  " saved at binary format. Ignored.\n",
+                  __func__);
+        }
+      }
+      na = 0;
+      for (k=1; k<=mesh->na; k++) {
+        na++;
+        if (  mesh->edge[k].tag & MG_PARBDY ) {
+          if(!bin) {
+            fprintf(inm,"%d\n",na);
           }
         }
       }
@@ -1759,12 +2053,28 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
       fprintf(stdout,"     NUMBER OF PRISMS         %8d\n",npr);
 
     if ( na )
-      fprintf(stdout,"     NUMBER OF EDGES          %8d   RIDGES  %8d\n",na,nr);
+      fprintf(stdout,"     NUMBER OF EDGES          %8d   RIDGES  %8d"
+              "   REQUIRED  %8d\n",na,nr,nedreq);
     if ( mesh->nt )
       fprintf(stdout,"     NUMBER OF TRIANGLES      %8d   REQUIRED  %8d\n",
               mesh->nt, ntreq);
     if ( nq )
-      fprintf(stdout,"     NUMBER OF QUADRILATERALS %8d   REQUIRED  %8d\n",nq,nqreq);
+      fprintf(stdout,"     NUMBER OF QUADRILATERALS %8d   REQUIRED  %8d\n",
+              nq,nqreq);
+
+    if ( npar || nedpar || ntpar || nepar || nqpar ) {
+      fprintf(stdout,"     NUMBER OF PARALLEL ENTITIES: \n");
+      if ( npar )
+        fprintf(stdout,"                  VERTICES       %8d \n",npar);
+      if ( nedpar )
+        fprintf(stdout,"                  EDGES          %8d \n",nedpar);
+      if ( ntpar )
+        fprintf(stdout,"                  TRIANGLES      %8d \n",ntpar);
+      if ( nqpar )
+        fprintf(stdout,"                  QUADRILATERALS %8d \n",nqpar);
+      if ( nepar )
+        fprintf(stdout,"                  TETRAHEDRA    %8d \n",nepar);
+    }
   }
 
   /*fin fichier*/
@@ -1774,6 +2084,8 @@ int MMG3D_saveMesh(MMG5_pMesh mesh, const char *filename) {
   } else {
     binch = 54; //End
     fwrite(&binch,MMG5_SW,1,inm);
+    bpos += 2*MMG5_SW; //bpos + End key
+    fwrite(&bpos,MMG5_SW,1,inm);
   }
   fclose(inm);
   return 1;
@@ -1818,7 +2130,11 @@ int MMG3D_loadSol(MMG5_pMesh mesh,MMG5_pSol met, const char *filename) {
 
   ier = MMG5_chkMetricType(mesh,type,inm);
 
-  if ( ier <1 ) return ier;
+  if ( ier < 1 ) {
+    MMG5_SAFE_FREE(type);
+    return ier;
+  }
+
   /* Allocate and store the header informations for each solution */
   if ( !MMG3D_Set_solSize(mesh,met,MMG5_Vertex,mesh->np,type[0]) ) {
     fclose(inm);
@@ -1917,6 +2233,7 @@ int MMG3D_loadAllSols(MMG5_pMesh mesh,MMG5_pSol *sol, const char *filename) {
       fclose(inm);
       return -1;
     }
+
     /* For binary file, we read the verson inside the file */
     if ( ver ) psl->ver = ver;
   }
@@ -1955,7 +2272,7 @@ int MMG3D_loadAllSols(MMG5_pMesh mesh,MMG5_pSol *sol, const char *filename) {
 int MMG3D_saveSol(MMG5_pMesh mesh,MMG5_pSol met, const char *filename) {
   FILE*        inm;
   MMG5_pPoint  ppt;
-  int          binch,bin,ier,k;
+  int          binch,bpos,bin,ier,k;
 
   if ( !met->m ) {
     fprintf(stderr,"\n  ## Warning: %s: no metric data to save.\n",__func__);
@@ -1964,8 +2281,9 @@ int MMG3D_saveSol(MMG5_pMesh mesh,MMG5_pSol met, const char *filename) {
 
   met->ver = 2;
 
-  ier = MMG5_saveSolHeader( mesh,filename,&inm,met->ver,&bin,mesh->np,met->dim,
-                            1,&met->type,&met->size);
+  bpos = 0;
+  ier = MMG5_saveSolHeader( mesh,filename,&inm,met->ver,&bin,&bpos,mesh->np,
+                            met->dim,1,&met->entities,&met->type,&met->size);
 
   if ( ier < 1 )  return ier;
 
@@ -1992,8 +2310,9 @@ int MMG3D_saveAllSols(MMG5_pMesh mesh,MMG5_pSol *sol, const char *filename) {
   MMG5_pSol    psl;
   FILE*        inm;
   MMG5_pPoint  ppt;
-  int          binch,bin,ier,k,j;
-  int          *type,*size;
+  MMG5_pTetra  pt;
+  int          binch,bpos,bin,ier,k,j,npointSols,ncellSols;
+  int          *type,*size,*entities;
 
   if ( !(*sol)[0].m )  return -1;
 
@@ -2001,16 +2320,31 @@ int MMG3D_saveAllSols(MMG5_pMesh mesh,MMG5_pSol *sol, const char *filename) {
 
   MMG5_SAFE_CALLOC(type,mesh->nsols,int,return 0);
   MMG5_SAFE_CALLOC(size,mesh->nsols,int,MMG5_SAFE_FREE(type);return 0);
+  MMG5_SAFE_CALLOC(entities,mesh->nsols,int,
+                   MMG5_SAFE_FREE(type);MMG5_SAFE_FREE(size);return 0);
+
+  npointSols = 0;
+  ncellSols = 0;
   for (k=0; k<mesh->nsols; ++k ) {
-    type[k] = (*sol)[k].type;
-    size[k] = (*sol)[k].size;
+    if ( ((*sol)[k].entities==MMG5_Noentity) || ((*sol)[k].entities==MMG5_Vertex) ) {
+      ++npointSols;
+    }
+    else if ( (*sol)[k].entities == MMG5_Tetrahedron ) {
+      ++ncellSols;
+    }
+    else {
+      printf("\n  ## Warning: %s: unexpected entity type for solution %d: %s."
+             "\n Ignored.\n",
+             __func__,k,MMG5_Get_entitiesName((*sol)[k].entities));
+    }
+    type[k]     = (*sol)[k].type;
+    size[k]     = (*sol)[k].size;
+    entities[k] = (*sol)[k].entities;
   }
 
-  ier = MMG5_saveSolHeader( mesh,filename,&inm,(*sol)[0].ver,&bin,mesh->np,
-                            (*sol)[0].dim,mesh->nsols,type,size);
-
-  MMG5_SAFE_FREE(type);
-  MMG5_SAFE_FREE(size);
+  bpos = 0;
+  ier = MMG5_saveSolHeader( mesh,filename,&inm,(*sol)[0].ver,&bin,&bpos,mesh->np,
+                            (*sol)[0].dim,mesh->nsols,entities,type,size);
 
   if ( ier < 1 )  return ier;
 
@@ -2020,10 +2354,34 @@ int MMG3D_saveAllSols(MMG5_pMesh mesh,MMG5_pSol *sol, const char *filename) {
 
     for ( j=0; j<mesh->nsols; ++j ) {
       psl = *sol+j;
-      MMG5_writeDoubleSol3D(mesh,psl,inm,bin,k,0);
+
+      if ( (psl->entities==MMG5_Noentity) || (psl->entities==MMG5_Vertex) ) {
+        MMG5_writeDoubleSol3D(mesh,psl,inm,bin,k,0);
+      }
     }
     fprintf(inm,"\n");
   }
+
+  MMG5_saveSolAtTetrahedraHeader( mesh,inm,(*sol)[0].ver,bin,&bpos,mesh->nsols,
+                                  ncellSols,entities,type,size );
+
+  for (k=1; k<=mesh->ne; k++) {
+    pt = &mesh->tetra[k];
+    if ( !MG_EOK(pt) ) continue;
+
+    for ( j=0; j<mesh->nsols; ++j ) {
+      psl = *sol+j;
+      if ( psl->entities==MMG5_Tetrahedron ) {
+        MMG5_writeDoubleSol3D(mesh,psl,inm,bin,k,0);
+      }
+    }
+    fprintf(inm,"\n");
+  }
+
+
+  MMG5_SAFE_FREE(type);
+  MMG5_SAFE_FREE(size);
+  MMG5_SAFE_FREE(entities);
 
   /* End file */
   if(!bin) {
@@ -2033,5 +2391,246 @@ int MMG3D_saveAllSols(MMG5_pMesh mesh,MMG5_pSol *sol, const char *filename) {
     fwrite(&binch,MMG5_SW,1,inm);
   }
   fclose(inm);
+  return 1;
+}
+
+static inline
+int MMG3D_saveEle(MMG5_pMesh mesh,const char *filename) {
+  FILE*             inm;
+  MMG5_pTetra       pt;
+  int               k,i,ne;
+  char              *ptr,*data;
+
+  if ( !mesh->ne ) {
+    return 1;
+  }
+
+  if ( (!filename) || !(*filename) ) {
+    filename = mesh->nameout;
+  }
+  if ( (!filename) || !(*filename) ) {
+    printf("\n  ## Error: %s: unable to save a file without a valid filename\n.",
+           __func__);
+    return 0;
+  }
+
+  /* Name of file */
+  MMG5_SAFE_CALLOC(data,strlen(filename)+5,char,return 0);
+  strcpy(data,filename);
+  ptr = strstr(data,".node");
+  if ( ptr ) {
+    *ptr = '\0';
+  }
+
+  /* Add .node ext  */
+  strcat(data,".ele");
+  if( !(inm = fopen(data,"wb")) ) {
+    fprintf(stderr,"  ** UNABLE TO OPEN %s.\n",data);
+    MMG5_SAFE_FREE(data);
+    return 0;
+  }
+
+  fprintf(stdout,"  %%%% %s OPENED\n",data);
+  MMG5_SAFE_FREE(data);
+
+  ne    = 0;
+  for (k=1; k<=mesh->ne; k++) {
+    pt = &mesh->tetra[k];
+    if ( !MG_EOK(pt) ) continue;
+    ne++;
+  }
+
+  /* Save elt number, node number per elt, 1 bdy marker */
+  fprintf(inm, "%d %d %d\n\n",ne,mesh->dim+1,1);
+
+  ne = 0;
+  for ( k=1; k<=mesh->ne; ++k ) {
+    pt = &mesh->tetra[k];
+    if ( MG_EOK(pt) ) {
+      /* Save elt idx */
+      fprintf(inm, "%d ",++ne);
+
+      /* Save connectivity */
+      for ( i=0; i<=mesh->dim; ++i ) {
+        fprintf(inm, "%d ",mesh->point[pt->v[i]].tmp);
+      }
+
+      /* Save bdy marker */
+      fprintf(inm, "%d\n",pt->ref);
+    }
+  }
+  fprintf(stdout,"     NUMBER OF ELEMENT       %8d\n",ne);
+
+  fclose(inm);
+
+  return 1;
+}
+
+static inline
+int MMG3D_saveNeigh(MMG5_pMesh mesh,const char *filename) {
+  FILE*             inm;
+  MMG5_pTetra       pt;
+  int               k,i,ne,idx;
+  char              *ptr,*data;
+
+  if ( !mesh->na ) {
+    return 1;
+  }
+
+  if ( (!filename) || !(*filename) ) {
+    filename = mesh->nameout;
+  }
+  if ( (!filename) || !(*filename) ) {
+    printf("\n  ## Error: %s: unable to save a file without a valid filename\n.",
+           __func__);
+    return 0;
+  }
+
+  /* Name of file */
+  MMG5_SAFE_CALLOC(data,strlen(filename)+7,char,return 0);
+  strcpy(data,filename);
+  ptr = strstr(data,".node");
+  if ( ptr ) {
+    *ptr = '\0';
+  }
+
+  /* Add .node ext  */
+  strcat(data,".neigh");
+  if( !(inm = fopen(data,"wb")) ) {
+    fprintf(stderr,"  ** UNABLE TO OPEN %s.\n",data);
+    MMG5_SAFE_FREE(data);
+    return 0;
+  }
+
+  fprintf(stdout,"  %%%% %s OPENED\n",data);
+  MMG5_SAFE_FREE(data);
+
+  if ( ! mesh->adja ) {
+    if ( !MMG3D_hashTetra(mesh,1) ) {
+      printf("\n  ## Error: %s: unable to compute triangle adjacencies\n.",__func__);
+      return 0;
+    }
+  }
+
+  ne    = 0;
+  for (k=1; k<=mesh->ne; k++) {
+    pt = &mesh->tetra[k];
+    if ( !MG_EOK(pt) ) continue;
+    ne++;
+  }
+
+  /* Save elt number, number of neighbors per elt */
+  fprintf(inm, "%d %d\n\n",ne,mesh->dim+1);
+
+  ne = 0;
+  for ( k=1; k<=mesh->ne; ++k ) {
+    pt = &mesh->tetra[k];
+    if ( MG_EOK(pt) ) {
+      /* Save elt idx */
+      fprintf(inm, "%d ",++ne);
+
+      /* Save neighbors */
+      for ( i=1; i<=mesh->dim+1; ++i ) {
+        /* The triangle conventions is that no neighbors <=> -1 */
+        idx = ( mesh->adja[4*(k-1)+i] > 0 ) ? mesh->adja[4*(k-1)+i]/4 : -1;
+        fprintf(inm, "%d ",idx);
+      }
+      /* Save bdy marker */
+      fprintf(inm, "\n");
+    }
+  }
+
+  fclose(inm);
+
+  return 1;
+}
+
+static inline
+int MMG3D_saveFace(MMG5_pMesh mesh,const char *filename) {
+  FILE*             inm;
+  MMG5_pTria        pt;
+  int               k,i;
+  char              *ptr,*data;
+
+  if ( !mesh->nt ) {
+    return 1;
+  }
+
+  if ( (!filename) || !(*filename) ) {
+    filename = mesh->nameout;
+  }
+  if ( (!filename) || !(*filename) ) {
+    printf("\n  ## Error: %s: unable to save a file without a valid filename\n.",
+           __func__);
+    return 0;
+  }
+
+  /* Name of file */
+  MMG5_SAFE_CALLOC(data,strlen(filename)+6,char,return 0);
+  strcpy(data,filename);
+  ptr = strstr(data,".node");
+  if ( ptr ) {
+    *ptr = '\0';
+  }
+
+  /* Add .node ext  */
+  strcat(data,".face");
+  if( !(inm = fopen(data,"wb")) ) {
+    fprintf(stderr,"  ** UNABLE TO OPEN %s.\n",data);
+    MMG5_SAFE_FREE(data);
+    return 0;
+  }
+
+  fprintf(stdout,"  %%%% %s OPENED\n",data);
+  MMG5_SAFE_FREE(data);
+
+  /* Save tria number, 1 bdy marker */
+  fprintf(inm, "%d %d\n\n",mesh->nt,1);
+
+  for ( k=1; k<=mesh->nt; ++k ) {
+    pt = &mesh->tria[k];
+    if ( MG_EOK(pt) ) {
+      /* Save elt idx */
+      fprintf(inm, "%d ",k);
+
+      /* Save connectivity */
+      for ( i=0; i<mesh->dim; ++i ) {
+        fprintf(inm, "%d ",mesh->point[pt->v[i]].tmp);
+      }
+
+      /* Save bdy marker */
+      fprintf(inm, "%d\n",pt->ref);
+    }
+  }
+  fprintf(stdout,"     NUMBER OF TRIANGLES       %8d\n",mesh->nt);
+
+  fclose(inm);
+
+  return 1;
+}
+
+
+int MMG3D_saveTetgenMesh(MMG5_pMesh mesh,const char *filename) {
+
+  if ( !MMG5_saveNode(mesh,filename) ) {
+    return 0;
+  }
+
+  if ( !MMG3D_saveEle(mesh,filename) ) {
+    return 0;
+  }
+
+  if ( !MMG3D_saveFace(mesh,filename) ) {
+    return 0;
+  }
+
+  if ( !MMG5_saveEdge(mesh,filename,".edge") ) {
+    return 0;
+  }
+
+  if ( !MMG3D_saveNeigh(mesh,filename) ) {
+    return 0;
+  }
+
   return 1;
 }

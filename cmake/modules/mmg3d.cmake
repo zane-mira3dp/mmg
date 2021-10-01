@@ -117,13 +117,13 @@ ENDIF()
 
 # Compile static library
 IF ( LIBMMG3D_STATIC )
-  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}3d_a STATIC
+  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}3d_a STATIC copy_3d_headers
     "${mmg3d_library_files}" ${PROJECT_NAME}3d )
 ENDIF()
 
 # Compile shared library
 IF ( LIBMMG3D_SHARED )
-  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}3d_so SHARED
+  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}3d_so SHARED copy_3d_headers
     "${mmg3d_library_files}" ${PROJECT_NAME}3d )
 ENDIF()
 
@@ -133,17 +133,19 @@ SET( mmg3d_headers
   ${MMG3D_BINARY_DIR}/libmmg3df.h
   ${COMMON_SOURCE_DIR}/libmmgtypes.h
   ${COMMON_BINARY_DIR}/libmmgtypesf.h
+  ${COMMON_BINARY_DIR}/mmgcmakedefines.h
+  ${COMMON_BINARY_DIR}/mmgversion.h
   )
+IF (NOT WIN32 OR MINGW)
+  LIST(APPEND mmg3d_headers  ${COMMON_BINARY_DIR}/git_log_mmg.h )
+ENDIF()
+
 
 # Install header files in /usr/local or equivalent
 INSTALL(FILES ${mmg3d_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mmg/mmg3d COMPONENT headers)
 
-COPY_FORTRAN_HEADER_AND_CREATE_TARGET ( ${MMG3D_BINARY_DIR} ${MMG3D_INCLUDE} 3d )
-
-# Copy header files in project directory at configuration step
-# (generated file don't exists yet or are outdated)
-FILE(INSTALL  ${mmg3d_headers} DESTINATION ${MMG3D_INCLUDE}
-  PATTERN "libmmg*f.h"  EXCLUDE)
+# Copy header files in project directory at build step
+COPY_HEADERS_AND_CREATE_TARGET ( ${MMG3D_SOURCE_DIR} ${MMG3D_BINARY_DIR} ${MMG3D_INCLUDE} 3d )
 
 ############################################################################
 #####
@@ -162,7 +164,7 @@ ENDIF()
 #####         Compile MMG3D executable
 #####
 ###############################################################################
-ADD_AND_INSTALL_EXECUTABLE ( ${PROJECT_NAME}3d
+ADD_AND_INSTALL_EXECUTABLE ( ${PROJECT_NAME}3d copy_3d_headers
   "${mmg3d_library_files}" ${mmg3d_main_file} )
 
 ###############################################################################
@@ -181,9 +183,6 @@ IF ( BUILD_TESTING )
   ##-------------------------------------------------------------------##
   # Add runtime that we want to test for mmg3d
   IF ( MMG3D_CI )
-
-    SET ( CTEST_OUTPUT_DIR ${PROJECT_BINARY_DIR}/TEST_OUTPUTS )
-    FILE ( MAKE_DIRECTORY  ${CTEST_OUTPUT_DIR} )
 
     IF ( LONG_TESTS )
       # Run some tests twice with the output of the previous test as input
@@ -207,6 +206,8 @@ IF ( BUILD_TESTING )
       SET(LIBMMG3D_LSONLY ${EXECUTABLE_OUTPUT_PATH}/libmmg3d_lsOnly )
       SET(LIBMMG3D_LSANDMETRIC ${EXECUTABLE_OUTPUT_PATH}/libmmg3d_lsAndMetric )
       SET(TEST_API3D_EXEC0 ${EXECUTABLE_OUTPUT_PATH}/test_api3d_0)
+      SET(TEST_API3D_DOMSEL ${EXECUTABLE_OUTPUT_PATH}/test_api3d_domain-selection)
+      SET(TEST_API3D_VTK2MESH ${EXECUTABLE_OUTPUT_PATH}/test_api3d_vtk2mesh)
 
       ADD_TEST(NAME libmmg3d_example0_a COMMAND ${LIBMMG3D_EXEC0_a}
         "${PROJECT_SOURCE_DIR}/libexamples/mmg3d/adaptation_example0/example0_a/cube.mesh"
@@ -251,6 +252,22 @@ IF ( BUILD_TESTING )
         "${MMG3D_CI_TESTS}/API_tests/2dom.mesh"
         "${CTEST_OUTPUT_DIR}/test_API3d.o"
        )
+      ADD_TEST(NAME test_api3d_domain-selection   COMMAND ${TEST_API3D_DOMSEL}
+        "${MMG3D_CI_TESTS}/OptLs_plane/plane.mesh"
+        "${MMG3D_CI_TESTS}/OptLs_plane/p.sol"
+        "${CTEST_OUTPUT_DIR}/test_API3d-domsel-whole.o"
+        "${CTEST_OUTPUT_DIR}/test_API3d-domsel-dom2.o"
+        )
+      ADD_TEST(NAME test_api3d_vtk2mesh   COMMAND ${TEST_API3D_VTK2MESH}
+        "${MMG3D_CI_TESTS}/API_tests/cellsAndNode-data.vtk"
+        "${CTEST_OUTPUT_DIR}/test_API3d-vtk2mesh.o"
+        )
+
+      IF ( NOT VTK_FOUND )
+        SET(expr "VTK library not founded")
+        SET_PROPERTY(TEST test_api3d_vtk2mesh
+          PROPERTY PASS_REGULAR_EXPRESSION "${expr}")
+      ENDIF ( )
 
       IF ( CMAKE_Fortran_COMPILER)
         SET(LIBMMG3D_EXECFORTRAN_a  ${EXECUTABLE_OUTPUT_PATH}/libmmg3d_fortran_a)

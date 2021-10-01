@@ -53,11 +53,11 @@ static int MMG5_adpspl(MMG5_pMesh mesh,MMG5_pSol met, int* warn) {
  MMG5_pxTetra pxt;
  MMG5_pPoint  p0,p1;
  double       len,lmax,o[3];
- int          k,ip,ip1,ip2,list[MMG3D_LMAX+2],ilist;
+ int          k,ip,ip1,ip2,list[MMG3D_LMAX+2],ilist,src;
  int          ns,ier;
- char         imax,j,i,i1,i2,ifa0,ifa1;
- char         chkRidTet;
- static char  mmgWarn    = 0;
+ int8_t       imax,j,i,i1,i2,ifa0,ifa1;
+ int8_t       chkRidTet;
+ static int8_t mmgWarn    = 0;
 
   *warn=0;
   ns = 0;
@@ -126,14 +126,19 @@ static int MMG5_adpspl(MMG5_pMesh mesh,MMG5_pSol met, int* warn) {
       o[1] = 0.5*(p0->c[1] + p1->c[1]);
       o[2] = 0.5*(p0->c[2] + p1->c[2]);
 
-      ip = MMG3D_newPt(mesh,o,MG_NOTAG);
+#ifdef USE_POINTMAP
+      src = p0->src;
+#else
+      src = 1;
+#endif
+      ip = MMG3D_newPt(mesh,o,MG_NOTAG,src);
 
       if ( !ip )  {
         /* reallocation of point table */
         MMG3D_POINT_REALLOC(mesh,met,ip,mesh->gap,
                              *warn=1;
                              break
-                             ,o,MG_NOTAG);
+                             ,o,MG_NOTAG,src);
       }
       if ( met->m ) {
         ier = MMG5_intmet(mesh,met,k,imax,ip,0.5);
@@ -177,15 +182,15 @@ static int MMG5_adpspl(MMG5_pMesh mesh,MMG5_pSol met, int* warn) {
  *
  */
 static int MMG5_adpcol(MMG5_pMesh mesh,MMG5_pSol met) {
-  MMG5_pTetra     pt;
-  MMG5_pxTetra    pxt;
-  MMG5_pPoint     p0,p1;
-  double     len,lmin;
-  int        k,ip,iq,list[MMG3D_LMAX+2],ilist,lists[MMG3D_LMAX+2],ilists,nc;
-  int        ier;
-  int16_t    tag;
-  char       imin,j,i,i1,i2,ifa0,ifa1;
-  static char mmgWarn = 0;
+  MMG5_pTetra   pt;
+  MMG5_pxTetra  pxt;
+  MMG5_pPoint   p0,p1;
+  double        len,lmin;
+  int           k,ip,iq,list[MMG3D_LMAX+2],ilist,lists[MMG3D_LMAX+2],ilists,nc;
+  int           ier;
+  int16_t       tag;
+  int8_t        imin,j,i,i1,i2,ifa0,ifa1;
+  static int8_t mmgWarn = 0;
 
   nc = 0;
   for (k=1; k<=mesh->ne; k++) {
@@ -244,7 +249,7 @@ static int MMG5_adpcol(MMG5_pMesh mesh,MMG5_pSol met) {
                               list,&ilist,lists,&ilists,(p0->tag & MG_NOM)) < 0 )
         return -1;
 
-      ilist = MMG5_chkcol_bdy(mesh,met,k,i,j,list,ilist,lists,ilists,2);
+      ilist = MMG5_chkcol_bdy(mesh,met,k,i,j,list,ilist,lists,ilists,0,0,2,0,0);
     }
     /* Case of an internal face */
     else {
@@ -296,7 +301,7 @@ static int MMG5_adptet(MMG5_pMesh mesh,MMG5_pSol met,int *permNodGlob) {
     else  ns = 0;
 
     /* renumbering if available and needed */
-    if ( it==1 && !MMG5_scotchCall(mesh,met,permNodGlob) )
+    if ( it==1 && !MMG5_scotchCall(mesh,met,NULL,permNodGlob) )
       return 0;
 
     if ( !mesh->info.noinsert ) {
@@ -360,7 +365,7 @@ static int MMG5_adptet(MMG5_pMesh mesh,MMG5_pSol met,int *permNodGlob) {
   }
 
   /* renumbering if available */
-  if ( !MMG5_scotchCall(mesh,met,permNodGlob) )
+  if ( !MMG5_scotchCall(mesh,met,NULL,permNodGlob) )
     return 0;
 
   /*shape optim*/
@@ -466,7 +471,7 @@ int MMG5_mmg3d1_pattern(MMG5_pMesh mesh,MMG5_pSol met,int *permNodGlob) {
   }
 
   /* renumbering if available */
-  if ( !MMG5_scotchCall(mesh,met,permNodGlob) )
+  if ( !MMG5_scotchCall(mesh,met,NULL,permNodGlob) )
     return 0;
 
   /**--- Stage 2: computational mesh */
@@ -491,7 +496,7 @@ int MMG5_mmg3d1_pattern(MMG5_pMesh mesh,MMG5_pSol met,int *permNodGlob) {
     MMG3D_gradsizreq(mesh,met);
   }
 
-  /*update quality*/
+  /* update quality*/
   if ( !MMG3D_tetraQual(mesh,met,1) ) return 0;
 
   if ( !MMG5_anatet(mesh,met,2,1) ) {
@@ -500,7 +505,7 @@ int MMG5_mmg3d1_pattern(MMG5_pMesh mesh,MMG5_pSol met,int *permNodGlob) {
   }
 
   /* renumbering if available */
-  if ( !MMG5_scotchCall(mesh,met,permNodGlob) )
+  if ( !MMG5_scotchCall(mesh,met,NULL,permNodGlob) )
     return 0;
 
 #ifdef DEBUG

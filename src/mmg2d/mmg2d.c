@@ -27,7 +27,7 @@ mytime   MMG5_ctim[TIMEMAX];
 /**
  * Print elapsed time at end of process.
  */
-static void MMG5_endcod() {
+static void MMG5_endcod(void) {
   char   stim[32];
 
   chrono(OFF,&MMG5_ctim[0]);
@@ -36,53 +36,31 @@ static void MMG5_endcod() {
 }
 
 static int MMG2D_usage(char *name) {
+
+  /* Common generic options, file options and mode options */
   MMG5_mmgUsage(name);
 
-  fprintf(stdout,"-opnbdy      preserve input edges at the interface of"
-          " two domains of the same reference.\n");
+  /* Lagrangian option (only for mmg2d/3d) */
+  MMG5_lagUsage();
 
-  fprintf(stdout,"-rmc [val]   Enable the removal of componants whose volume fraction is less than\n"
-          "             val (1e-5 if not given) of the mesh volume (ls mode).\n");
-#ifdef USE_ELAS
-  fprintf(stdout,"-lag [n] Lagrangian mesh displacement according to mode [0/1/2]\n");
-  fprintf(stdout,"             0: displacement\n");
-  fprintf(stdout,"             1: displacement + remeshing (swap and move)\n");
-  fprintf(stdout,"             2: displacement + remeshing (split, collapse,"
-          " swap and move)\n");
-#endif
-  fprintf(stdout,"-nsd val     only if no given triangle, save the subdomain number val (0==all subdomain)\n");
-  fprintf(stdout,"-msh val     read and write to gmsh visu if val = 1 (out) if val=2 (in and out)\n");
-  fprintf(stdout,"-degrad Qw Qdeg (with -lag option) : threshold for optimization\n");
+  /* Common parameters (first section) */
+  MMG5_paramUsage1();
 
-  /* fprintf(stdout,"-per          obsolete : to deal with periodic mesh on a square\n");*/
+  /* Parameters shared by mmg2d and 3d only*/
+  MMG5_2d3dUsage();
 
+  /* Specific parameters */
+  fprintf(stdout,"-3dMedit val read and write for gmsh visu: output only if val=1, input and output if val=2, input if val=3\n");
   fprintf(stdout,"\n");
 
-  fprintf(stdout,"-optim        mesh optimization\n");
+  fprintf(stdout,"-nofem       do not force Mmg to create a finite element mesh \n");
+  fprintf(stdout,"-nosurf      no surface modifications\n");
 
-  fprintf(stdout,"-nosurf       no surfacic modifications\n");
+  /* Common parameters (second section) */
+  MMG5_paramUsage2();
 
-  fprintf(stdout,"-noinsert     no insertion/suppression point\n");
-  fprintf(stdout,"-noswap       no edge flipping\n");
-  fprintf(stdout,"-nomove       no point relocation\n");
-
+  /* Common options for advanced users */
   MMG5_advancedUsage();
-
-  fprintf(stdout,"\n\n");
-
-  return 1;
-}
-
-/**
- * \param mesh pointer toward the mesh structure.
- * \return 0 if fail, 1 if success.
- *
- * Print the default parameters values.
- *
- */
-static inline int MMG5_defaultValues(MMG5_pMesh mesh) {
-
-  MMG5_mmgDefaultValues(mesh);
 
   fprintf(stdout,"\n\n");
 
@@ -172,7 +150,7 @@ static inline
 int MMG2D_writeLocalParam( MMG5_pMesh mesh ) {
   MMG5_iNode  *edgRefs,*triRefs;
   int          nparEdg,nparTri;
-  char         *ptr,data[128];
+  char         *ptr,data[MMG5_FILESTR_LGTH];
   FILE         *out;
 
   /** Save the local parameters file */
@@ -288,7 +266,8 @@ int MMG2D_defaultOption(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
   MMG2D_Set_commonFunc();
 
   if ( mesh->info.imprim > 0 ) {
-    fprintf(stdout,"\n  %s\n   MODULE MMG2D: IMB-LJLL : %s (%s)\n  %s\n",MG_STR,MG_VER,MG_REL,MG_STR);
+    fprintf(stdout,"\n  %s\n   MODULE MMG2D: IMB-LJLL : %s (%s)\n  %s\n",
+            MG_STR,MMG_VERSION_RELEASE,MMG_RELEASE_DATE,MG_STR);
     fprintf(stdout,"\n  -- DEFAULT PARAMETERS COMPUTATION\n");
   }
 
@@ -330,12 +309,12 @@ int MMG2D_defaultOption(MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
 int parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
   MMG5_pSol tmp = NULL;
   int     i;
-  char    namein[128];
+  char    namein[MMG5_FILESTR_LGTH];
 
   /* First step: search if user want to see the default parameters values. */
   for ( i=1; i< argc; ++i ) {
     if ( !strcmp(argv[i],"-val") ) {
-      MMG5_defaultValues(mesh);
+      MMG2D_defaultValues(mesh);
       return 0;
     }
   }
@@ -464,17 +443,6 @@ int parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
             return 0;
           }
         }
-        else if(!strcmp(argv[i],"-msh") ) {
-          if ( ++i < argc && isdigit(argv[i][0]) ) {
-            if ( !MMG2D_Set_iparameter(mesh,met,MMG2D_IPARAM_msh,atoi(argv[i])) )
-              return 0;
-          }
-          else {
-            fprintf(stderr,"Missing argument option %c\n",argv[i-1][1]);
-            MMG2D_usage(argv[0]);
-            return 0;
-          }
-        }
         else if (!strcmp(argv[i],"-m") ) {
           if ( ++i < argc && isdigit(argv[i][0]) ) {
             if ( !MMG2D_Set_iparameter(mesh,met,MMG2D_IPARAM_mem,atoi(argv[i])) )
@@ -488,6 +456,10 @@ int parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
         }
         break;
       case 'n':
+        if ( !strcmp(argv[i],"-nofem") ) {
+          if ( !MMG2D_Set_iparameter(mesh,met,MMG2D_IPARAM_nofem,1) )
+            return 0;
+        }
         if ( !strcmp(argv[i],"-nreg") ) {
           if ( !MMG2D_Set_iparameter(mesh,met,MMG2D_IPARAM_nreg,1) )
             return 0;
@@ -529,7 +501,7 @@ int parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
         }
         break;
       case 'o':
-        if ( !strcmp(argv[i],"-out") ) {
+        if ( (!strcmp(argv[i],"-out")) || (!strcmp(argv[i],"-o")) ) {
           if ( ++i < argc && isascii(argv[i][0])  && argv[i][0]!='-') {
             if ( !MMG2D_Set_outputMeshName(mesh,argv[i]) )
               return 0;
@@ -547,12 +519,6 @@ int parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
         else if( !strcmp(argv[i],"-optim") ) {
           if ( !MMG2D_Set_iparameter(mesh,met,MMG2D_IPARAM_optim,1) )
             return 0;
-        }
-        break;
-      case 'p':
-        if ( !strcmp(argv[i],"-per") ) {
-          fprintf(stdout,"WARNING OBSOLETE OPTION\n");
-          mesh->info.renum = -10;
         }
         break;
       case 'r':
@@ -596,6 +562,19 @@ int parsar(int argc,char *argv[],MMG5_pMesh mesh,MMG5_pSol met,MMG5_pSol sol) {
           fprintf(stderr,"Missing argument option %c\n",argv[i-1][1]);
           MMG2D_usage(argv[0]);
           return 0;
+        }
+        break;
+      case '3':
+        if(!strcmp(argv[i],"-3dMedit") ) {
+          if ( ++i < argc && isdigit(argv[i][0]) ) {
+            if ( !MMG2D_Set_iparameter(mesh,met,MMG2D_IPARAM_3dMedit,atoi(argv[i])) )
+              return 0;
+          }
+          else {
+            fprintf(stderr,"Missing argument option %c\n",argv[i-1][1]);
+            MMG2D_usage(argv[0]);
+            return 0;
+          }
         }
         break;
       default:
@@ -678,8 +657,8 @@ int main(int argc,char *argv[]) {
   int           ier,ierSave,fmtin,fmtout;
   char          stim[32],*ptr;
 
-  fprintf(stdout,"  -- MMG2D, Release %s (%s) \n",MG_VER,MG_REL);
-  fprintf(stdout,"     %s\n",MG_CPY);
+  fprintf(stdout,"  -- MMG2D, Release %s (%s) \n",MMG_VERSION_RELEASE,MMG_RELEASE_DATE);
+  fprintf(stdout,"     %s\n",MMG_COPYRIGHT);
   fprintf(stdout,"     %s %s\n",__DATE__,__TIME__);
 
   /* Print timer at exit */
@@ -876,6 +855,16 @@ int main(int argc,char *argv[]) {
       break;
     case ( MMG5_FMT_VtkVtk ):
       ierSave = MMG2D_saveVtkMesh(mesh,met,mesh->nameout);
+      break;
+    case ( MMG5_FMT_Tetgen ):
+      ierSave = MMG2D_saveTetgenMesh(mesh,mesh->nameout);
+      /* This format dont allow to save a solution: use a .sol file */
+      if ( !ierSave ) {
+        MMG2D_RETURN_AND_FREE(mesh,met,ls,disp,MMG5_STRONGFAILURE);
+      }
+      if ( met && met->np ) {
+        ierSave = MMG2D_saveSol(mesh,met,mesh->nameout);
+      }
       break;
     default:
       ierSave = MMG2D_saveMesh(mesh,mesh->nameout);

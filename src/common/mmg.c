@@ -35,30 +35,16 @@
 
 #include "mmgcommon.h"
 
-/* Declared in the header, but need to define in at most one compilation unit */
-int    (*MMG5_chkmsh)(MMG5_pMesh,int,int);
-int    (*MMG5_bezierCP)(MMG5_pMesh ,MMG5_Tria *,MMG5_pBezier ,char );
-double (*MMG5_lenSurfEdg)(MMG5_pMesh mesh,MMG5_pSol sol ,int ,int, char );
-int    (*MMG5_grad2met_ani)(MMG5_pMesh,MMG5_pSol,MMG5_pTria,int,int);
-int    (*MMG5_grad2metreq_ani)(MMG5_pMesh,MMG5_pSol,MMG5_pTria,int,int);
-int    (*MMG5_compute_meanMetricAtMarkedPoints)( MMG5_pMesh,MMG5_pSol);
-int    (*MMG5_indElt)(MMG5_pMesh mesh,int kel);
-int    (*MMG5_indPt)(MMG5_pMesh mesh,int kp);
-
-#ifdef USE_SCOTCH
-int    (*MMG5_renumbering)(int vertBoxNbr, MMG5_pMesh mesh, MMG5_pSol sol,int*);
-#endif
-
 /**
  * \param *prog pointer toward the program name.
  *
- * Print help for common options of mmg3d and mmgs.
+ * Print help for common options of the 3 codes (first section).
  *
  */
 void MMG5_mmgUsage(char *prog) {
   fprintf(stdout,"\nUsage: %s [-v [n]] [opts..] filein [fileout]\n",prog);
 
-  fprintf(stdout,"\n** Generic options :\n");
+  fprintf(stdout,"\n** Generic options\n");
   fprintf(stdout,"-h        Print this message\n");
   fprintf(stdout,"-v [n]    Tune level of verbosity, [-1..10]\n");
   fprintf(stdout,"-m [n]    Set maximal memory size to n Mbytes\n");
@@ -71,17 +57,74 @@ void MMG5_mmgUsage(char *prog) {
   fprintf(stdout,"-in  file  input triangulation\n");
   fprintf(stdout,"-out file  output triangulation\n");
   fprintf(stdout,"-sol file  load solution or metric file\n");
+  fprintf(stdout,"-met file  load metric file\n");
 
+  fprintf(stdout,"\n**  Mode specifications (mesh adaptation by default)\n");
+  fprintf(stdout,"-ls  val     create mesh of isovalue val (0 if no argument provided)\n");
+
+}
+
+/**
+ *
+ * Print help for common parameters options of the 3 codes (first section).
+ *
+ */
+void MMG5_paramUsage1(void) {
   fprintf(stdout,"\n**  Parameters\n");
+  fprintf(stdout,"-A           enable anisotropy (without metric file).\n");
   fprintf(stdout,"-ar     val  angle detection\n");
   fprintf(stdout,"-nr          no angle detection\n");
-  fprintf(stdout,"-hmin   val  minimal mesh size\n");
-  fprintf(stdout,"-hmax   val  maximal mesh size\n");
-  fprintf(stdout,"-hsiz   val  constant mesh size\n");
   fprintf(stdout,"-hausd  val  control Hausdorff distance\n");
   fprintf(stdout,"-hgrad  val  control gradation\n");
-  fprintf(stdout,"-ls     val  create mesh of isovalue val (0 if no argument provided)\n");
+  fprintf(stdout,"-hmax   val  maximal mesh size\n");
+  fprintf(stdout,"-hmin   val  minimal mesh size\n");
+  fprintf(stdout,"-hsiz   val  constant mesh size\n");
+}
 
+/**
+ *
+ * Print help for common options of the 3 codes (second section).
+ *
+ */
+void MMG5_paramUsage2(void) {
+
+  fprintf(stdout,"-noinsert    no point insertion/deletion \n");
+  fprintf(stdout,"-nomove      no point relocation\n");
+  fprintf(stdout,"-noswap      no edge or face flipping\n");
+  fprintf(stdout,"-nreg        normal regul.\n");
+  fprintf(stdout,"-nsd    val  save the subdomain number val (0==all subdomain)\n");
+  fprintf(stdout,"-optim       mesh optimization\n");
+
+}
+
+/**
+ *
+ * Print help for lagrangian motion option.
+ *
+ */
+void MMG5_lagUsage(void) {
+
+#ifdef USE_ELAS
+  fprintf(stdout,"-lag [n]     lagrangian mesh displacement according to mode [0/1/2]\n");
+  fprintf(stdout,"               0: displacement\n");
+  fprintf(stdout,"               1: displacement + remeshing (swap and move)\n");
+  fprintf(stdout,"               2: displacement + remeshing (split, collapse,"
+          " swap and move)\n");
+#endif
+}
+
+/**
+ *
+ * Print help for common options between 2D and 3D.
+ *
+ */
+void MMG5_2d3dUsage(void) {
+
+  fprintf(stdout,"-opnbdy      preserve input triangles at the interface of"
+          " two domains of the same reference.\n");
+
+  fprintf(stdout,"-rmc   [val] enable the removal of componants whose volume fraction is less than\n"
+          "             val (1e-5 if not given) of the mesh volume (ls mode).\n");
 }
 
 /**
@@ -89,7 +132,7 @@ void MMG5_mmgUsage(char *prog) {
  * Print help for advanced users of mmg.
  *
  */
-void MMG5_advancedUsage() {
+void MMG5_advancedUsage(void) {
 
   fprintf(stdout,"\n**  Parameters for advanced users\n");
   fprintf(stdout,"-nosizreq       disable setting of required edge sizes over required vertices.\n");
@@ -118,19 +161,22 @@ void MMG5_mmgDefaultValues(MMG5_pMesh mesh) {
   fprintf(stdout,"\n**  Parameters\n");
   fprintf(stdout,"angle detection           (-ar)     : %lf\n",
           180/M_PI*acos(mesh->info.dhd) );
-  fprintf(stdout,"minimal mesh size         (-hmin)   : 0.001 of "
+  fprintf(stdout,"minimal mesh size         (-hmin)   : %lf\n"
+          "If not yet computed: 0.001 of "
           "the mesh bounding box if no metric is provided, 0.1 times the "
-          "minimum of the metric sizes otherwise.\n");
-  fprintf(stdout,"maximal mesh size         (-hmax)   : size of "
+          "minimum of the metric sizes otherwise.\n",mesh->info.hmin);
+  fprintf(stdout,"maximal mesh size         (-hmax)   : %lf\n"
+          " If not yet computed: size of "
           "the mesh bounding box without metric, 10 times the maximum of the "
-          "metric sizes otherwise.\n");
+          "metric sizes otherwise.\n",mesh->info.hmax);
   fprintf(stdout,"Hausdorff distance        (-hausd)  : %lf\n",
           mesh->info.hausd);
+
   fprintf(stdout,"gradation control         (-hgrad)  : %lf\n",
-          exp(mesh->info.hgrad));
+          (mesh->info.hgrad < 0) ? mesh->info.hgrad : exp(mesh->info.hgrad) );
 
   fprintf(stdout,"gradation control for required entities (-hgradreq)  : %lf\n",
-          exp(mesh->info.hgradreq));
+          (mesh->info.hgradreq < 0) ? mesh->info.hgradreq : exp(mesh->info.hgradreq) );
 }
 
 /**
@@ -324,15 +370,24 @@ void MMG5_solTruncatureForOptim(MMG5_pMesh mesh, MMG5_pSol met) {
  * \return pointer toward the filename extension or toward the end of the string
  * if no extension have been founded
  *
- * Get the extension of the filename string.
+ * Get the extension of the filename string. Do not consider '.o' as an extension.
  *
  */
 char *MMG5_Get_filenameExt( char *filename ) {
-  char *dot;
+  const char pathsep='/';
+  char       *dot,*lastpath;
+
+  if ( !filename ) {
+    return NULL;
+  }
 
   dot = strrchr(filename, '.');
+  lastpath = (pathsep == 0) ? NULL : strrchr (filename, pathsep);
 
-  if ( (!dot) || dot == filename ) return filename + strlen(filename);
+  if ( (!dot) || dot == filename || (lastpath>dot) || (!strcmp(dot,".o")) ) {
+    /* No extension */
+    return filename + strlen(filename);
+  }
 
   return dot;
 }
@@ -340,9 +395,9 @@ char *MMG5_Get_filenameExt( char *filename ) {
 /**
  * \param path string containing a filename and its path
  *
- * \return a pointer toward the file basename.
+ * \return a pointer toward the allocated string that contains the file basename.
  *
- * Extract basename from a path.
+ * Extract basename from a path (allocate a string to store it).
  *
  */
 char *MMG5_Get_basename(char *path) {
@@ -352,6 +407,92 @@ char *MMG5_Get_basename(char *path) {
     return strdup(path);
   else
     return strdup(s + 1);
+}
+
+/**
+ * \param path string containing a filename and its path
+ *
+ * \return a pointer toward the path allocated here
+ *
+ * Remove filename from a path and return the path in a newly allocated string.
+ *
+ */
+char *MMG5_Get_path(char *path) {
+  char *lastpath,*retpath;
+  int len;
+
+  if ( path == NULL) return NULL;
+
+  lastpath = (MMG5_PATHSEP == 0) ? NULL : strrchr (path, MMG5_PATHSEP);
+
+  if ( !lastpath ) {
+    return NULL;
+  }
+
+
+  len = 0;
+  while ( path+len != lastpath ) {
+    ++len;
+  }
+
+  MMG5_SAFE_MALLOC(retpath,len+1,char,return NULL);
+
+  /* Copy the string without the extension and add \0 */
+  strncpy ( retpath, path, len );
+  retpath[len] = '\0';
+
+  return retpath;
+}
+
+/**
+ * \param path path from which we want to remove the extension.
+ *
+ * \return allocated string or NULL if the allocation fail.
+ *
+ * Allocate a new string and copy \a path without extension in it.
+ *
+ */
+char *MMG5_Remove_ext (char* path,char *ext) {
+  int        len;
+  char       *retpath, *lastext, *lastpath;
+  char       *extloc;
+
+  /* Default extension if not provided */
+  if ( (!ext) || !*ext ) {
+    extloc = ".";
+  }
+  else {
+    extloc = ext;
+  }
+
+  /* Error checks and string allocation. */
+  if ( path == NULL) return NULL;
+
+  /* Find the relevant characters and the length of the string without
+   * extension */
+  lastext = strstr (path, extloc);
+  lastpath = (MMG5_PATHSEP == 0) ? NULL : strrchr (path, MMG5_PATHSEP);
+
+  if ( lastext == NULL || (lastpath != NULL && lastpath > lastext) ) {
+    /* No extension or the extension is left from a separator (i.e. it is not an
+     * extension) */
+    len = strlen(path);
+  }
+  else {
+    /* An extension is found */
+    len = 0;
+    while ( path+len != lastext ) {
+      ++len;
+    }
+  }
+
+  MMG5_SAFE_MALLOC(retpath,len+1,char,return NULL);
+
+  /* Copy the string without the extension and add \0 */
+  strncpy ( retpath, path, len );
+  retpath[len] = '\0';
+
+  return retpath;
 }
 
 /**
@@ -398,6 +539,9 @@ int MMG5_Get_format( char *ptr, int fmt ) {
   else if ( !strncmp ( ptr,".vtk",strlen(".vtk") ) ) {
     return MMG5_FMT_VtkVtk;
   }
+  else if ( !strncmp ( ptr,".node",strlen(".node") ) ) {
+    return MMG5_FMT_Tetgen;
+  }
 
   return defFmt;
 }
@@ -440,6 +584,9 @@ const char* MMG5_Get_formatName(enum MMG5_Format fmt)
     break;
   case MMG5_FMT_GmshBinary:
     return "MMG5_FMT_GmshBinary";
+    break;
+  case MMG5_FMT_Tetgen:
+    return "MMG5_FMT_Tetgen";
     break;
   default:
     return "MMG5_Unknown";

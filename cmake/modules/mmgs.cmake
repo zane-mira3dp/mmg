@@ -82,13 +82,13 @@ FILE(
 
 # Compile static library
 IF ( LIBMMGS_STATIC )
-  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}s_a STATIC
+  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}s_a STATIC copy_s_headers
     "${mmgs_library_files}" ${PROJECT_NAME}s )
 ENDIF()
 
 # Compile shared library
 IF ( LIBMMGS_SHARED )
-  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}s_so SHARED
+  ADD_AND_INSTALL_LIBRARY ( lib${PROJECT_NAME}s_so SHARED copy_s_headers
     "${mmgs_library_files}" ${PROJECT_NAME}s )
 ENDIF()
 
@@ -98,17 +98,18 @@ SET( mmgs_headers
   ${MMGS_BINARY_DIR}/libmmgsf.h
   ${COMMON_SOURCE_DIR}/libmmgtypes.h
   ${COMMON_BINARY_DIR}/libmmgtypesf.h
+  ${COMMON_BINARY_DIR}/mmgcmakedefines.h
+  ${COMMON_BINARY_DIR}/mmgversion.h
   )
+IF (NOT WIN32 OR MINGW)
+  LIST(APPEND mmgs_headers  ${COMMON_BINARY_DIR}/git_log_mmg.h )
+ENDIF()
 
 # Install header files in /usr/local or equivalent
 INSTALL(FILES ${mmgs_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mmg/mmgs COMPONENT headers)
 
-COPY_FORTRAN_HEADER_AND_CREATE_TARGET ( ${MMGS_BINARY_DIR} ${MMGS_INCLUDE} s )
-
-# Copy header files in project directory at configuration step
-# (generated file don't exists yet or are outdated)
-FILE(INSTALL  ${mmgs_headers} DESTINATION ${MMGS_INCLUDE}
-  PATTERN "libmmg*f.h"  EXCLUDE)
+# Copy header files in project directory at build step
+COPY_HEADERS_AND_CREATE_TARGET ( ${MMGS_SOURCE_DIR} ${MMGS_BINARY_DIR} ${MMGS_INCLUDE} s )
 
 ############################################################################
 #####
@@ -125,7 +126,7 @@ ENDIF()
 #####         Compile MMGS executable
 #####
 ###############################################################################
-ADD_AND_INSTALL_EXECUTABLE ( ${PROJECT_NAME}s
+ADD_AND_INSTALL_EXECUTABLE ( ${PROJECT_NAME}s copy_s_headers
   "${mmgs_library_files}" ${mmgs_main_file} )
 
 ###############################################################################
@@ -147,10 +148,6 @@ IF ( BUILD_TESTING )
   ##-------------------------------------------------------------------##
   # Add runtime that we want to test for mmgs
   IF( MMGS_CI )
-
-    SET ( CTEST_OUTPUT_DIR ${PROJECT_BINARY_DIR}/TEST_OUTPUTS )
-    FILE ( MAKE_DIRECTORY  ${CTEST_OUTPUT_DIR} )
-
 
     ADD_EXEC_TO_CI_TESTS ( ${PROJECT_NAME}s EXECUT_MMGS )
     SET ( LISTEXEC_MMG ${EXECUT_MMGS} )

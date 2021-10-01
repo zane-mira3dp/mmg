@@ -90,7 +90,7 @@ void MMG3D_set_reqBoundaries(MMG5_pMesh mesh) {
  * \param mesh pointer towarad the mesh structure.
  * \return 0 if fail, 1 otherwise.
  *
- * topology: set adjacent, detect Moebius, flip faces, count connected comp.
+ * topology: set tria adjacency, detect Moebius, flip faces, count connected comp.
  *
  */
 int MMG5_setadj(MMG5_pMesh mesh){
@@ -98,7 +98,7 @@ int MMG5_setadj(MMG5_pMesh mesh){
   int          *adja,*adjb,adji1,adji2,*pile,iad,ipil,ip1,ip2,gen;
   int          k,kk,iel,jel,nvf,nf,nr,nt,nre,nreq,ncc,ned,ref;
   int16_t      tag;
-  char         i,ii,i1,i2,ii1,ii2,voy;
+  int8_t       i,ii,i1,i2,ii1,ii2,voy;
 
   nvf = nf = ncc = ned = 0;
 
@@ -118,6 +118,8 @@ int MMG5_setadj(MMG5_pMesh mesh){
 
       adja = &mesh->adjt[3*(k-1)+1];
       for (i=0; i<3; i++) {
+        if( ((pt->tag[i] & MG_PARBDY) && !(pt->tag[i] & MG_PARBDYBDY)) ||
+            (pt->tag[i] & MG_BDY) ) continue;
         i1  = MMG5_inxt2[i];
         i2  = MMG5_iprv2[i];
         ip1 = pt->v[i1];
@@ -145,6 +147,7 @@ int MMG5_setadj(MMG5_pMesh mesh){
         tag = MG_GEO;
         if ( mesh->info.opnbdy ) tag += MG_OPNBDY;
         if ( !adja[i] ) {
+          tag += MG_NOM;
           pt->tag[i] |= tag;
           mesh->point[ip1].tag |= tag;
           mesh->point[ip2].tag |= tag;
@@ -226,6 +229,11 @@ int MMG5_setadj(MMG5_pMesh mesh){
             nf++;
           }
         }
+        else {
+          /* Mark triangles that have a consistent orientation with their
+           * neighbours */
+          pt1->base =  -pt1->base;
+        }
       }
     }
     while ( ipil > 0 );
@@ -284,7 +292,7 @@ int MMG5_setdhd(MMG5_pMesh mesh) {
   MMG5_pTria    pt,pt1;
   double        n1[3],n2[3],dhd;
   int          *adja,k,kk,ne,nr;
-  char          i,ii,i1,i2;
+  int8_t        i,ii,i1,i2;
 
   ne = nr = 0;
   for (k=1; k<=mesh->nt; k++) {
@@ -295,7 +303,8 @@ int MMG5_setdhd(MMG5_pMesh mesh) {
     MMG5_nortri(mesh,pt,n1);
     adja = &mesh->adjt[3*(k-1)+1];
     for (i=0; i<3; i++) {
-      if ( pt->tag[i] & MG_PARBDY ) continue;
+      if ( ((pt->tag[i] & MG_PARBDY) && !(pt->tag[i] & MG_PARBDYBDY)) ||
+           (pt->tag[i] & MG_BDY) ) continue;
 
       kk  = adja[i] / 3;
       ii  = adja[i] % 3;
@@ -348,12 +357,12 @@ int MMG5_setdhd(MMG5_pMesh mesh) {
  *
  */
 int MMG5_chkVertexConnectedDomains(MMG5_pMesh mesh){
-  MMG5_pTetra  pt;
-  MMG5_pxTetra pxt;
-  MMG5_pPoint  ppt;
-  int          k,lists[MMG3D_LMAX+2],listv[MMG3D_LMAX+2],ilists,ilistv,i0,ier;
-  char         i,j;
-  static char  mmgWarn = 0;
+  MMG5_pTetra   pt;
+  MMG5_pxTetra  pxt;
+  MMG5_pPoint   ppt;
+  int           k,lists[MMG3D_LMAX+2],listv[MMG3D_LMAX+2],ilists,ilistv,i0,ier;
+  int8_t        i,j;
+  static int8_t mmgWarn = 0;
 
   for (k=1; k<=mesh->np; k++) {
     ppt = &mesh->point[k];
@@ -422,7 +431,7 @@ int MMG5_singul(MMG5_pMesh mesh) {
   MMG5_pPoint    ppt,p1,p2;
   double         ux,uy,uz,vx,vy,vz,dd;
   int            list[MMG3D_LMAX+2],listref[MMG3D_LMAX+2],k,nc,xp,nr,ns,nre;
-  char           i;
+  int8_t         i;
 
   nre = nc = 0;
   for (k=1; k<=mesh->nt; k++) {
@@ -431,8 +440,8 @@ int MMG5_singul(MMG5_pMesh mesh) {
 
     for (i=0; i<3; i++) {
       ppt = &mesh->point[pt->v[i]];
-      if ( !MG_VOK(ppt) || ( ppt->tag & MG_CRN ) || ( ppt->tag & MG_NOM ) )
-        continue;
+      if ( !MG_VOK(ppt) || ( ppt->tag & MG_CRN ) || ( ppt->tag & MG_NOM ) ||
+          ( ppt->tag & MG_PARBDY ) ) continue;
       else if ( MG_EDG(ppt->tag) ) {
         /* Store the number of ridges passing through the point (xp) and the
          * number of ref edges (nr) */
@@ -497,7 +506,7 @@ int MMG5_norver(MMG5_pMesh mesh) {
   MMG5_xPoint    *pxp;
   double         n[3],dd;
   int            *adja,k,kk,ng,nn,nt,nf,nnr;
-  char           i,ii,i1;
+  int8_t         i,ii,i1;
 
   /* recomputation of normals only if mesh->xpoint has been freed */
   if ( mesh->xpoint ) {
@@ -525,7 +534,7 @@ int MMG5_norver(MMG5_pMesh mesh) {
         ppt->flag = mesh->base;
         if ( mesh->nc1 ) {
           if ( ppt->n[0]*ppt->n[0] + ppt->n[1]*ppt->n[1] + ppt->n[2]*ppt->n[2] > 0 ) {
-            if ( ppt->tag & MG_CRN || ppt->tag & MG_NOM || MG_EDG(ppt->tag) ) {
+            if ( ppt->tag & MG_PARBDY || ppt->tag & MG_CRN || ppt->tag & MG_NOM || MG_EDG(ppt->tag) ) {
               ++nnr;
               continue;
             }
@@ -553,7 +562,7 @@ int MMG5_norver(MMG5_pMesh mesh) {
     adja = &mesh->adjt[3*(k-1)+1];
     for (i=0; i<3; i++) {
       ppt = &mesh->point[pt->v[i]];
-      if ( ppt->tag & MG_CRN || ppt->tag & MG_NOM || ppt->flag == mesh->base )  continue;
+      if ( ppt->tag & MG_PARBDY || ppt->tag & MG_CRN || ppt->tag & MG_NOM || ppt->flag == mesh->base )  continue;
 
       /* C1 point */
       if ( !MG_EDG(ppt->tag) ) {
@@ -667,10 +676,10 @@ int MMG3D_nmgeom(MMG5_pMesh mesh){
   MMG5_pTetra     pt;
   MMG5_pPoint     p0;
   MMG5_pxPoint    pxp;
-  int        k,base;
-  int        *adja;
-  double     n[3],t[3];
-  char       i,j,ip,ier;
+  int             k,base;
+  int             *adja;
+  double          n[3],t[3];
+  int8_t          i,j,ip,ier;
 
   base = ++mesh->base;
   for (k=1; k<=mesh->ne; k++) {
@@ -683,7 +692,7 @@ int MMG3D_nmgeom(MMG5_pMesh mesh){
         ip = MMG5_idir[i][j];
         p0 = &mesh->point[pt->v[ip]];
         if ( p0->flag == base )  continue;
-        else if ( !(p0->tag & MG_NOM) )  continue;
+        else if ( !(p0->tag & MG_NOM) || (p0->tag & MG_PARBDY) )  continue;
 
         p0->flag = base;
         ier = MMG5_boulenm(mesh,k,ip,i,n,t);
@@ -693,10 +702,6 @@ int MMG3D_nmgeom(MMG5_pMesh mesh){
         else if ( !ier ) {
           p0->tag |= MG_REQ;
           p0->tag &= ~MG_NOSURF;
-          if ( p0->ref != 0 )
-            p0->ref = -abs(p0->ref);
-          else
-            p0->ref = MG_ISO;
         }
         else {
           if ( !p0->xp ) {
@@ -716,14 +721,44 @@ int MMG3D_nmgeom(MMG5_pMesh mesh){
       }
     }
   }
-  /* Mark as required the non-manifold points that do not belong to a surface
-   * tetra (a tetra that have a face without adjacent)*/
-  for (k=1; k<=mesh->np; k++) {
+  /* Deal with the non-manifold points that do not belong to a surface
+   * tetra (a tetra that has a face without adjacent)*/
+  for (k=1; k<=mesh->ne; k++) {
+    pt   = &mesh->tetra[k];
+    if( !MG_EOK(pt) ) continue;
+    
+    for (i=0; i<4; i++) {
+      p0 = &mesh->point[pt->v[i]];
+      if ( p0->tag & MG_REQ || !(p0->tag & MG_NOM) ||
+           p0->xp || (p0->tag & MG_PARBDY) ) continue;
+      ier = MMG5_boulenmInt(mesh,k,i,t);
+      if ( ier ) {
+        ++mesh->xp;
+        if(mesh->xp > mesh->xpmax){
+          MMG5_TAB_RECALLOC(mesh,mesh->xpoint,mesh->xpmax,MMG5_GAP,MMG5_xPoint,
+                            "larger xpoint table",
+                            mesh->xp--;
+                            fprintf(stderr,"  Exit program.\n");return 0;);
+        }
+        p0->xp = mesh->xp;
+        pxp = &mesh->xpoint[p0->xp];
+        memcpy(p0->n,t,3*sizeof(double));
+        pxp->nnor = 1;
+      }
+      else {
+        p0->tag |= MG_REQ;
+        p0->tag &= ~MG_NOSURF;
+      }
+    }
+  }
+
+  /*for (k=1; k<=mesh->np; k++) {
     p0 = &mesh->point[k];
     if ( !(p0->tag & MG_NOM) || p0->xp ) continue;
     p0->tag |= MG_REQ;
     p0->tag &= ~MG_NOSURF;
-  }
+  }*/
+  
   return 1;
 }
 
@@ -756,17 +791,19 @@ int MMG3D_analys(MMG5_pMesh mesh) {
     fprintf(stderr,"\n  ## Prism hashing problem. Exit program.\n");
     return 0;
   }
+
   /* compatibility triangle orientation w/r tetras */
   if ( !MMG5_bdryPerm(mesh) ) {
     fprintf(stderr,"\n  ## Boundary orientation problem. Exit program.\n");
     return 0;
   }
-
+  
   /* identify surface mesh */
   if ( !MMG5_chkBdryTria(mesh) ) {
     fprintf(stderr,"\n  ## Boundary problem. Exit program.\n");
     return 0;
   }
+
   MMG5_freeXTets(mesh);
   MMG5_freeXPrisms(mesh);
 
@@ -793,7 +830,7 @@ int MMG3D_analys(MMG5_pMesh mesh) {
   if ( abs(mesh->info.imprim) > 5  || mesh->info.ddebug )
     fprintf(stdout,"  ** SETTING TOPOLOGY\n");
 
-  /* identify connexity */
+  /* identify connexity and flip orientation of faces if needed */
   if ( !MMG5_setadj(mesh) ) {
     fprintf(stderr,"\n  ## Topology problem. Exit program.\n");
     MMG5_DEL_MEM(mesh,hash.item);
@@ -828,7 +865,7 @@ int MMG3D_analys(MMG5_pMesh mesh) {
     return 0;
   }
 
-  /* set bdry entities to tetra */
+  /* set bdry entities to tetra and fill the orientation field */
   if ( !MMG5_bdrySet(mesh) ) {
     fprintf(stderr,"\n  ## Boundary problem. Exit program.\n");
     MMG5_DEL_MEM(mesh,hash.item);
@@ -847,7 +884,8 @@ int MMG3D_analys(MMG5_pMesh mesh) {
     return 0;
   }
 
-  /* check subdomains connected by a vertex and mark these vertex as corner and required */
+  /* check subdomains connected by a vertex and mark these vertex as corner and
+     required */
   MMG5_chkVertexConnectedDomains(mesh);
 
   /* build hash table for geometric edges */
@@ -867,6 +905,13 @@ int MMG3D_analys(MMG5_pMesh mesh) {
 
   /* define geometry for non manifold points */
   if ( !MMG3D_nmgeom(mesh) ) return 0;
+
+#ifdef USE_POINTMAP
+  /* Initialize source point with input index */
+  int ip;
+  for( ip = 1; ip <= mesh->np; ip++ )
+    mesh->point[ip].src = ip;
+#endif
 
   /* release memory */
   MMG5_DEL_MEM(mesh,mesh->htab.geom);

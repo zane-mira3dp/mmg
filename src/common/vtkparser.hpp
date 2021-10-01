@@ -203,8 +203,10 @@ int MMG5_saveVtkMesh_i(MMG5_pMesh mesh,MMG5_pSol *sol,
   vtkSmartPointer<vtkLine>       edge       = vtkSmartPointer<vtkLine>       ::New();
 
   int nc = mesh->na+mesh->nt+mesh->nquad+mesh->ne+mesh->nprism;
-  int types[nc];
   int ic = 0;
+
+  int* types = NULL;
+  MMG5_SAFE_MALLOC ( types, nc, int, return 0 );
 
   // transfer edges from Mmg to VTK
   for ( int k=1; k<=mesh->na; ++k ) {
@@ -334,7 +336,20 @@ int MMG5_saveVtkMesh_i(MMG5_pMesh mesh,MMG5_pSol *sol,
 
   // Transfer point solutions into data set
   MMG5_pSol   psl   = NULL;
-  int         nsols = (metricData==1 && sol && *sol)? 1 : mesh->nsols;
+  int         nsols;
+
+  if ( metricData==1 ) {
+    if ( sol && *sol && sol[0]->np ) {
+      nsols = 1;
+    }
+    else {
+      /* In analysis mode (-noinsert -noswap -nomove), metric is not allocated */
+      nsols = 0;
+    }
+  }
+  else {
+    nsols = mesh->nsols;
+  }
 
   static int mmgWarn = 0;
   for ( int isol=0; isol<nsols; ++isol) {
@@ -369,7 +384,8 @@ int MMG5_saveVtkMesh_i(MMG5_pMesh mesh,MMG5_pSol *sol,
       char *tmp = MMG5_Get_basename(psl->namein);
       char *data;
 
-      MMG5_SAFE_CALLOC(data,strlen(tmp)+8,char,return 0);
+      MMG5_SAFE_CALLOC(data,strlen(tmp)+8,char,
+                       MMG5_SAFE_FREE ( types ); return 0);
 
       strcpy(data,tmp);
       free(tmp); tmp = 0;
@@ -385,7 +401,9 @@ int MMG5_saveVtkMesh_i(MMG5_pMesh mesh,MMG5_pSol *sol,
       ar->SetName("no_name");
     }
 
-    double dfmt[ncp];
+    double* dfmt = NULL;
+    MMG5_SAFE_MALLOC ( dfmt, ncp, double,  MMG5_SAFE_FREE ( types );return 0 );
+
     if ( psl->size!= (psl->dim*(psl->dim+1))/2 ) {
       /* scalar or vector field: data order and size isn't modified */
       for ( int k=1; k<=mesh->np; k++) {
@@ -440,6 +458,8 @@ int MMG5_saveVtkMesh_i(MMG5_pMesh mesh,MMG5_pSol *sol,
       }
     }
     dataset->GetPointData()->AddArray(ar);
+
+    MMG5_SAFE_FREE(dfmt);
   }
 
   if ( npart ) {
@@ -474,6 +494,8 @@ int MMG5_saveVtkMesh_i(MMG5_pMesh mesh,MMG5_pSol *sol,
     //MMG5_internal_VTKbinary(writer,binary);
     writer->Write();
   }
+
+  MMG5_SAFE_FREE(types);
 
   return 1;
 }
