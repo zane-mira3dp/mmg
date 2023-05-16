@@ -32,6 +32,9 @@ INCLUDE(cmake/modules/macros.cmake)
 
 PROJECT (mmg)
 
+# Fix
+SET(CMAKE_C_FLAGS " -fcommon ${CMAKE_C_FLAGS}")
+
 # Executable path
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 SET(COMMON_SOURCE_DIR ${PROJECT_SOURCE_DIR}/src/common)
